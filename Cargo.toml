@@ -1,0 +1,17 @@
+# Cargo.toml
+[package]
+name = "hsemulate"
+version = "0.1.0"
+edition = "2021"
+description = "Local runner for HubSpot Workflow Custom Code Actions (JS/Python) with assertions, snapshots, flaky detection, and budgets."
+license = "MIT"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+tempfile = "3.12"
+tokio = { version = "1.39", features = ["process", "macros", "rt-multi-thread", "io-util"] }
+sysinfo = "0.30"

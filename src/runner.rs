@@ -489,8 +489,11 @@ fn init_scaffold(language: Option<String>) -> Result<()> {
 fn default_assertions_json() -> &'static str {
     r#"
 {
-  "_example": {
-    "callback.outputFields.success": true,
+  "ok": true,
+  "result": {
+    "outputFields": {
+      "success": true,
+    }
   }
 }
 "#
@@ -509,7 +512,7 @@ env:
 
 runtime:
   node: node
-  python: python3
+  python: python
 
 output:
   mode: simple   # stdout | pretty | simple | file

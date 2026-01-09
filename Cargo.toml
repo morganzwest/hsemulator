@@ -1,7 +1,7 @@
 # Cargo.toml
 [package]
 name = "hsemulate"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Local runner for HubSpot Workflow Custom Code Actions (JS/Python) with assertions, snapshots, flaky detection, and budgets."
 license = "MIT"

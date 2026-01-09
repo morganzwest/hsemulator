@@ -155,7 +155,16 @@ budgets:
   memory_mb: 64
 
 output:
-  mode: simple
+  mode: simple # simple | pretty | stdout | file
+  # file: results.json
+
+assertions_file: assertions.json
+
+snapshots:
+  enabled: true
+  # ignore:
+  #   - output.timestamp
+  #   - meta.runId
 ```
 
 ---
@@ -217,6 +226,11 @@ output:
   file: results.json
 ```
 
+Notes:
+
+* `simple` prints a human-friendly summary.
+* `pretty` and `stdout` include a full JSON envelope with `meta` (timing, memory), `output`, and any failures.
+
 ---
 
 ## Assertions
@@ -227,15 +241,31 @@ Example `assertions.json`:
 
 ```json
 {
-  "callback.outputFields.success": true
+  "callback.outputFields.success": { "eq": true },
+  "language": { "regex": "node|python" }
 }
 ```
 
-Run with assertions:
+Supported operators:
+
+* `eq` (exact match)
+* `gt` / `lt` (numeric comparisons)
+* `exists` (presence)
+* `regex` (string matches)
+
+Run with assertions (CLI override):
 
 ```bash
 hsemulate run actions/action.js --config config.yaml --assert assertions.json
 ```
+
+Config default:
+
+```yaml
+assertions_file: assertions.json
+```
+
+If `assertions_file` is set, it overrides inline `assertions` in `config.yaml`.
 
 ---
 
@@ -254,6 +284,18 @@ Snapshots are stored in:
 ```
 snapshots/
 ```
+
+You can enable snapshots in config:
+
+```yaml
+snapshots:
+  enabled: true
+  # ignore:
+  #   - output.timestamp
+  #   - meta.runId
+```
+
+Note: `snapshots.ignore` is parsed but not yet applied during comparison.
 
 Future runs must match the snapshot or fail.
 

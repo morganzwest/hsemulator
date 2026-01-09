@@ -1,19 +1,6 @@
 // src/snapshot.rs
 
 //! Snapshot storage and comparison.
-//!
-//! Snapshots capture the **final structured JSON output** of an action run
-//! (the JSON printed by the runner shim).
-//!
-//! They deliberately do NOT include:
-//! - execution time
-//! - memory usage
-//! - run metadata
-//!
-//! This ensures snapshots are stable and only fail when the *behavioural output*
-//! of the action changes.
-//!
-//! Snapshots are opt-in via the `--snapshot` flag.
 
 use anyhow::{bail, Context, Result};
 use serde_json::Value;
@@ -21,7 +8,6 @@ use std::path::{Path, PathBuf};
 
 /// Build the full snapshot file path for a given snapshot key.
 ///
-/// Snapshot files are stored as:
 /// snapshots/<key>.snapshot.json
 pub fn snapshot_path(base_dir: &Path, key: &str) -> PathBuf {
     base_dir.join(format!("{}.snapshot.json", key))
@@ -35,19 +21,19 @@ pub fn load_snapshot(path: &Path) -> Result<Value> {
     let parsed: Value =
         serde_json::from_str(&raw).context("Snapshot file is not valid JSON")?;
 
-    Ok(parsed)
+    Ok(normalize(parsed))
 }
 
 /// Write a snapshot file to disk.
-///
-/// The directory is created automatically if it does not exist.
 pub fn write_snapshot(path: &Path, value: &Value) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("Failed to create snapshot directory {:?}", parent))?;
     }
 
-    let bytes = serde_json::to_vec_pretty(value)
+    let normalized = normalize(value.clone());
+
+    let bytes = serde_json::to_vec_pretty(&normalized)
         .context("Failed to serialise snapshot JSON")?;
 
     std::fs::write(path, bytes)
@@ -58,11 +44,50 @@ pub fn write_snapshot(path: &Path, value: &Value) -> Result<()> {
 
 /// Compare an expected snapshot with the actual output.
 ///
-/// Fails if the two JSON values are not exactly equal.
+/// Fails with a readable diff when values differ.
 pub fn compare_snapshot(expected: &Value, actual: &Value) -> Result<()> {
-    if expected != actual {
-        bail!("Snapshot mismatch");
+    let expected = normalize(expected.clone());
+    let actual = normalize(actual.clone());
+
+    if expected == actual {
+        return Ok(());
     }
 
-    Ok(())
+    let expected_str =
+        serde_json::to_string_pretty(&expected).unwrap_or_else(|_| "<invalid json>".to_string());
+    let actual_str =
+        serde_json::to_string_pretty(&actual).unwrap_or_else(|_| "<invalid json>".to_string());
+
+    bail!(
+        "Snapshot mismatch\n\n--- expected\n{}\n\n+++ actual\n{}",
+        expected_str,
+        actual_str
+    );
+}
+
+/* ---------------- helpers ---------------- */
+
+/// Recursively normalise JSON values to ensure stable ordering.
+fn normalize(value: Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut keys: Vec<_> = map.keys().cloned().collect();
+            keys.sort();
+
+            let mut normalized = serde_json::Map::new();
+            for k in keys {
+                if let Some(v) = map.get(&k) {
+                    normalized.insert(k, normalize(v.clone()));
+                }
+            }
+
+            Value::Object(normalized)
+        }
+
+        Value::Array(arr) => {
+            Value::Array(arr.into_iter().map(normalize).collect())
+        }
+
+        other => other,
+    }
 }

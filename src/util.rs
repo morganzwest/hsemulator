@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 /// config.yaml at `/project/config.yaml`
 /// fixtures.dir = "fixtures"
 /// → resolves to `/project/fixtures`
+#[allow(dead_code)]
 pub fn resolve_dir_relative_to_config(
     config_path: &Path,
     rel_dir: &str,

@@ -6,23 +6,18 @@ use std::{collections::BTreeMap, fs, path::Path};
 
 /// Root configuration loaded from `config.yaml`.
 ///
-/// This file controls:
-/// - Where fixtures live
-/// - Which environment variables are injected into the action
-/// - Which Node/Python binaries to use
-/// - Optional performance budgets
-///
-/// Colleagues using the tool only need to edit `config.yaml`,
-/// not this Rust file.
+/// This file is the single source of truth for execution.
+/// CLI flags may override fields at runtime.
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    /// Fixture configuration (directory + default file)
-    pub fixtures: Fixtures,
+    /// Action configuration (required)
+    pub action: Action,
+
+    /// One or more fixture files
+    #[serde(default)]
+    pub fixtures: Vec<String>,
 
     /// Environment variables injected into the action process
-    ///
-    /// Example:
-    /// HUBSPOT_TOKEN, HUBSPOT_BASE_URL
     #[serde(default)]
     pub env: BTreeMap<String, String>,
 
@@ -31,31 +26,80 @@ pub struct Config {
     pub runtime: Runtime,
 
     /// Optional performance budgets
-    ///
-    /// These can be overridden by CLI flags.
     #[serde(default)]
     pub budgets: Option<Budgets>,
+
+    /// Assertions applied to the action output
+    #[serde(default)]
+    pub assertions: BTreeMap<String, Assertion>,
+
+    /// Optional assertions JSON file path (overrides inline assertions)
+    #[serde(default)]
+    pub assertions_file: Option<String>,
+
+    /// Snapshot configuration
+    #[serde(default)]
+    pub snapshots: SnapshotConfig,
 
     /// Output configuration
     #[serde(default)]
     pub output: OutputConfig,
+
+    /// Watch files and re-run on change
+    #[serde(default)]
+    pub watch: bool,
+
+    /// Number of times to repeat execution (flaky detection)
+    #[serde(default = "default_repeat")]
+    pub repeat: u32,
+
+    /// Execution mode (normal | ci)
+    #[serde(default)]
+    pub mode: Mode,
 }
 
-/// Fixture configuration section.
-///
-/// Example in config.yaml:
-///
-/// fixtures:
-///   dir: fixtures
-///   default: event.json
+/// Action definition.
 #[derive(Debug, Deserialize)]
-pub struct Fixtures {
-    /// Directory containing fixture JSON files.
-    /// This path is resolved relative to the location of config.yaml.
-    pub dir: String,
+pub struct Action {
+    /// js | python
+    #[serde(rename = "type")]
+    #[allow(dead_code)]
+    pub action_type: ActionType,
 
-    /// Default fixture filename inside `fixtures.dir`.
-    pub default: String,
+    /// Path to the action file
+    pub entry: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ActionType {
+    Js,
+    Python,
+}
+
+/// Snapshot configuration.
+#[derive(Debug, Deserialize, Default)]
+pub struct SnapshotConfig {
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Paths to ignore when comparing snapshots
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub ignore: Vec<String>,
+}
+
+/// Assertion operators.
+///
+/// Values are parsed from YAML but represented as JSON for runtime comparison.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum Assertion {
+    Eq { eq: serde_json::Value },
+    Gt { gt: serde_json::Value },
+    Lt { lt: serde_json::Value },
+    Exists { exists: bool },
+    Regex { regex: String },
 }
 
 /// Output configuration.
@@ -88,23 +132,26 @@ pub enum OutputMode {
 }
 
 fn default_output_mode() -> OutputMode {
-    OutputMode::Stdout
+    OutputMode::Simple
 }
 
 /// Runtime binary configuration.
-///
-/// Example:
-///
-/// runtime:
-///   node: node
-///   python: python3
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize)]
 pub struct Runtime {
     #[serde(default = "default_node")]
     pub node: String,
 
     #[serde(default = "default_python")]
     pub python: String,
+}
+
+impl Default for Runtime {
+    fn default() -> Self {
+        Self {
+            node: default_node(),
+            python: default_python(),
+        }
+    }
 }
 
 fn default_node() -> String {
@@ -116,28 +163,32 @@ fn default_python() -> String {
 }
 
 /// Optional performance budgets.
-///
-/// Example:
-///
-/// budgets:
-///   duration_ms: 500
-///   memory_mb: 64
 #[derive(Debug, Deserialize, Clone)]
 pub struct Budgets {
-    /// Maximum execution time in milliseconds
     pub duration_ms: Option<u64>,
-
-    /// Maximum peak memory usage in megabytes (RSS)
     pub memory_mb: Option<u64>,
+}
+
+/// Execution mode.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Mode {
+    Normal,
+    Ci,
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Mode::Normal
+    }
+}
+
+fn default_repeat() -> u32 {
+    1
 }
 
 impl Config {
     /// Load and parse `config.yaml` from disk.
-    ///
-    /// This performs:
-    /// - File read
-    /// - YAML deserialization
-    /// - Basic structural validation
     pub fn load(path: &Path) -> Result<Self> {
         let raw = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {:?}", path))?;
@@ -145,6 +196,19 @@ impl Config {
         let cfg: Config =
             serde_yaml::from_str(&raw).context("Failed to parse YAML config")?;
 
+        cfg.validate()?;
         Ok(cfg)
+    }
+
+    fn validate(&self) -> Result<()> {
+        if self.fixtures.is_empty() {
+            anyhow::bail!("At least one fixture must be defined in `fixtures`");
+        }
+
+        if self.repeat == 0 {
+            anyhow::bail!("repeat must be >= 1");
+        }
+
+        Ok(())
     }
 }

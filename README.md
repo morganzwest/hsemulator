@@ -1,378 +1,137 @@
-# Local HubSpot Emulator
+# HubSpot Emulator (hsemulator)
 
-> ⚠️ **Pre-release (v0.1.1)**
->
-> This is an early release intended for developer use.
-> While the core execution, assertions, and snapshot features are stable,
-> the CLI surface and configuration schema may change without notice.
->
-> Use in production pipelines at your own discretion.
->
-> Feedback and bug reports are encouraged.
+**hsemulator** is a local test runner for **HubSpot Workflow Custom Code Actions**.
 
-`hsemulate` is a lightweight CLI tool that lets you run **HubSpot Workflow Custom Code Actions**
-(JavaScript or Python) **locally on your computer**, using the _exact same file_ you would paste into HubSpot.
+It allows you to run the _exact JavaScript or Python code_ you paste into HubSpot locally, using real workflow event payloads, with support for assertions, snapshots, execution budgets, and flaky-run detection.
 
-It is designed for:
-
-- Local testing
-- Debugging before deploying to HubSpot
-- Adding assertions, budgets, and snapshots
-- Avoiding slow trial-and-error in the HubSpot UI
-
-Once installed, `hsemulate` is available globally from your terminal.
+The goal is to make developing HubSpot custom code feel closer to Lambda-style local development—without relying on the HubSpot UI for iteration.
 
 ---
 
-## Requirements
+## Why hsemulator exists
 
-You must have the following installed:
+Developing HubSpot custom code today typically means:
 
-- **Node.js** (for JavaScript actions)
-- **Python 3** (for Python actions)
-- **Git** (optional, but recommended)
+- Writing code in an editor
+- Copying it into the HubSpot UI
+- Triggering a workflow
+- Reading logs in a browser
+- Repeating
 
-Check versions:
+hsemulator replaces that loop with a local, deterministic workflow:
+
+- Code stays in your editor
+- Events are fixtures
+- Failures are explicit
+- Regressions are caught automatically
+
+No UI-driven iteration required.
+
+---
+
+## When to use it
+
+Use hsemulator when you want to:
+
+- Develop and debug HubSpot custom code locally
+- Validate logic using real workflow event payloads
+- Catch regressions with assertions and snapshots
+- Enforce execution limits during development or CI
+- Reduce copy–paste cycles into the HubSpot UI
+
+Do **not** use it to:
+
+- Fully emulate HubSpot’s runtime or infrastructure
+- Mock HubSpot APIs or rate limits
+- Replace integration or end-to-end tests
+
+---
+
+## Core capabilities
+
+- Local execution of JS and Python custom code actions
+- Fixture-based event input
+- Assertions against output and metadata
+- Snapshot testing for regression detection
+- Execution budgets (time and memory)
+- Flaky-run detection via repeat execution
+- CI-friendly, machine-readable output
+
+---
+
+## Documentation
+
+📖 **Full documentation is available on Read the Docs:**
+
+👉 [Read our Documentation](https://hsemulator.readthedocs.io/)
+
+Start here if you want:
+- Installation instructions
+- Project structure
+- Configuration reference
+- Assertions, snapshots, budgets, and CI usage
+
+---
+
+## Developer notes (Rust / Cargo)
+
+hsemulator is written in **Rust** and distributed as a standalone binary.
+
+### Building locally
 
 ```bash
-node --version
-python --version
-hsemulate --version
-```
+cargo build
+````
 
----
-
-## Installation
-
-Download and run the **Windows installer (`.exe`)**.
-
-The installer will:
-
-- Install `hsemulate`
-- Add it to your system `PATH`
-- Allow clean uninstall via Windows Apps
-
-After installation, restart your terminal and verify:
+### Running from source
 
 ```bash
-hsemulate --help
+cargo run -- run
 ```
 
----
-
-## Getting Started
-
-### 1. Create a new project
-
-From any directory:
-
-JavaScript action:
+### Release builds
 
 ```bash
-hsemulate init js
+cargo build --release
 ```
 
-Python action:
-
-```bash
-hsemulate init python
-```
-
-This creates a ready-to-run structure:
-
-```
-.
-├─ actions/
-│  └─ action.js | action.py
-├─ fixtures/
-│  └─ event.json
-├─ config.yaml
-├─ assertions.json
-```
+The release binary is what gets packaged into the installer.
+End users do **not** need Rust or Cargo installed.
 
 ---
 
-## Running an action
+## High-level architecture
 
-### Basic run
+At a high level, hsemulator works like this:
 
-JavaScript:
-
-```bash
-hsemulate run actions/action.js --config config.yaml
+```
+fixture.json
+     │
+     ▼
+runtime shim (Node / Python)
+     │
+     ▼
+your HubSpot custom code
+     │
+     ▼
+structured JSON output
+     │
+     ├─ assertions
+     ├─ budgets
+     └─ snapshots
 ```
 
-Python:
+Each run is isolated, deterministic, and fully observable.
+---
 
-```bash
-hsemulate run actions/action.py --config config.yaml
-```
+## Contributing / feedback
 
-This will:
+Issues, bug reports, and feature requests are welcome:
 
-- Load the fixture as the HubSpot `event`
-- Run the action locally
-- Stream logs
-- Print a clear summary
-- Exit with `0` (success) or `1` (failure)
+👉 [https://github.com/morganzwest/Local-HubSpot-Emulator/issues](https://github.com/morganzwest/Local-HubSpot-Emulator/issues)
 
 ---
 
-## Fixtures (input data)
+## License
 
-Fixtures simulate the HubSpot event payload.
-
-Default location:
-
-```
-fixtures/event.json
-```
-
-To use a different fixture:
-
-```bash
-hsemulate run actions/action.js --config config.yaml --fixture other_event.json
-```
-
----
-
-## Configuration (`config.yaml`)
-
-`config.yaml` controls how your action is executed locally.
-This is where you configure **environment variables, budgets, output behaviour, and runtime options**.
-
-### Example
-
-```yaml
-env:
-  HUBSPOT_ACCESS_TOKEN: test-token
-  API_BASE_URL: https://example.com
-  DEBUG: 'true'
-
-budgets:
-  duration_ms: 500
-  memory_mb: 64
-
-output:
-  mode: simple # simple | pretty | stdout | file
-  # file: results.json
-
-assertions_file: assertions.json
-
-snapshots:
-  enabled: true
-  # ignore:
-  #   - output.timestamp
-  #   - meta.runId
-```
-
----
-
-### Environment variables
-
-Values under `env` are injected at runtime.
-
-```yaml
-env:
-  MY_SECRET_KEY: abc123
-  FEATURE_FLAG: 'true'
-```
-
-Access them exactly as you would in HubSpot:
-
-- JavaScript:
-
-  ```js
-  process.env.MY_SECRET_KEY;
-  ```
-
-- Python:
-
-  ```py
-  os.environ["MY_SECRET_KEY"]
-  ```
-
----
-
-### Budgets (time & memory)
-
-```yaml
-budgets:
-  duration_ms: 500
-  memory_mb: 64
-```
-
-If exceeded:
-
-- The run fails
-- The exceeded limit is reported
-- Exit code is `1`
-
----
-
-### Output configuration
-
-```yaml
-output:
-  mode: simple # simple | pretty | stdout | file
-```
-
-Write output to a file:
-
-```yaml
-output:
-  mode: file
-  file: results.json
-```
-
-Notes:
-
-- `simple` prints a human-friendly summary.
-- `pretty` and `stdout` include a full JSON envelope with `meta` (timing, memory), `output`, and any failures.
-
----
-
-## Assertions
-
-Assertions let you fail a run if output is not what you expect.
-
-Example `assertions.json`:
-
-```json
-{
-  "callback.outputFields.success": { "eq": true },
-  "language": { "regex": "node|python" }
-}
-```
-
-Supported operators:
-
-- `eq` (exact match)
-- `gt` / `lt` (numeric comparisons)
-- `exists` (presence)
-- `regex` (string matches)
-
-Run with assertions (CLI override):
-
-```bash
-hsemulate run actions/action.js --config config.yaml --assert assertions.json
-```
-
-Config default:
-
-```yaml
-assertions_file: assertions.json
-```
-
-If `assertions_file` is set, it overrides inline `assertions` in `config.yaml`.
-
----
-
-## Snapshots
-
-Snapshots store full output and compare future runs.
-
-Create a snapshot:
-
-```bash
-hsemulate run actions/action.js --config config.yaml --snapshot
-```
-
-Snapshots are stored in:
-
-```
-snapshots/
-```
-
-You can enable snapshots in config:
-
-```yaml
-snapshots:
-  enabled: true
-  # ignore:
-  #   - output.timestamp
-  #   - meta.runId
-```
-
-Note: `snapshots.ignore` is parsed but not yet applied during comparison.
-
-Future runs must match the snapshot or fail.
-
----
-
-## Flaky detection
-
-Detect non-deterministic behaviour:
-
-```bash
-hsemulate run actions/action.js --config config.yaml --repeat 3
-```
-
-If outputs differ, the action is marked **flaky**.
-
----
-
-## Common failure types
-
-### Runtime error
-
-- Syntax error
-- File cannot be loaded
-- Node or Python crashes
-
-### Action error
-
-- Exception thrown inside `main()`
-
-### Assertion failure
-
-- Output does not match expectations
-
-### Budget failure
-
-- Took too long
-- Used too much memory
-
----
-
-## Exit codes
-
-- `0` → success
-- `1` → failure
-
-Safe for CI and automation.
-
----
-
-## Typical workflow
-
-1. Write or edit your action
-2. Update `fixtures/event.json`
-3. Update `config.yaml`
-4. Run locally
-5. Fix errors
-6. Add assertions
-7. Add snapshot (optional)
-8. Paste into HubSpot with confidence
-
----
-
-## Notes
-
-- Action files are executed **exactly as written**
-- No HubSpot APIs are mocked
-- Environment variables come from `config.yaml`
-- This tool is intentionally stricter than HubSpot’s UI
-
----
-
-## Summary
-
-`hsemulate` lets you treat HubSpot custom code like real software:
-
-- testable
-- repeatable
-- debuggable
-- predictable
-
-Run locally. Ship once. Paste into HubSpot with confidence.
+MIT

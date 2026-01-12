@@ -1,15 +1,5 @@
 # Local HubSpot Emulator
 
-> ⚠️ **Pre-release (v0.1.1)**
->
-> This is an early release intended for developer use.
-> While the core execution, assertions, and snapshot features are stable,
-> the CLI surface and configuration schema may change without notice.
->
-> Use in production pipelines at your own discretion.
->
-> Feedback and bug reports are encouraged.
-
 `hsemulate` is a lightweight CLI tool that lets you run **HubSpot Workflow Custom Code Actions**
 (JavaScript or Python) **locally on your computer**, using the _exact same file_ you would paste into HubSpot.
 

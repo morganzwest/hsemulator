@@ -41,7 +41,7 @@ Do **not** use it to:
 ## Documentation
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 getting-started
 project-structure

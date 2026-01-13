@@ -34,9 +34,9 @@ Promotion assumes the workflow and action already exist.
 ### Initialise CI/CD
 
 ```bash
-hsemulator cicd init
-hsemulator cicd init action
-hsemulator cicd init action --branch main
+hsemulate cicd init
+hsemulate cicd init action
+hsemulate cicd init action --branch main
 ```
 
 This scaffolds:
@@ -54,20 +54,20 @@ This scaffolds:
 ### Promote Code
 
 ```bash
-hsemulator promote <target>
+hsemulate promote <target>
 ```
 
 Force promotion (skip tests and drift checks):
 
 ```bash
-hsemulator promote <target> --force
+hsemulate promote <target> --force
 ```
 
 ---
 
 ## High-Level Promotion Flow
 
-When running `hsemulator promote`, the following steps occur:
+When running `hsemulate promote`, the following steps occur:
 
 1. Load `.hsemulator/cicd.yaml`
 2. Resolve HubSpot authentication
@@ -269,11 +269,11 @@ Generated workflows are intentionally minimal:
 
 ```yaml
 - name: Run tests
-  run: ./hsemulator test
+  run: ./hsemulate test
 
 - name: Promote
   if: success()
-  run: ./hsemulator promote production
+  run: ./hsemulate promote production
   env:
     HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
 ```

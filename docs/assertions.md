@@ -21,7 +21,7 @@ Assertions can come from one of three places, resolved in this order:
 1. **CLI override**
 
    ```bash
-   hsemulator run --assert assertions.json
+   hsemulate run --assert assertions.json
    ```
 
 2. **`assertions_file` in `config.yaml`**
@@ -54,8 +54,8 @@ If no assertions are provided, no assertion checks are performed.
 
 This asserts that:
 
-* `callback.outputFields.success` exists
-* Its value is exactly `true`
+- `callback.outputFields.success` exists
+- Its value is exactly `true`
 
 ---
 
@@ -69,8 +69,8 @@ Assertions are defined as a JSON object:
 }
 ```
 
-* The key is a **dot-separated JSON path**
-* The value defines one or more assertion operators
+- The key is a **dot-separated JSON path**
+- The value defines one or more assertion operators
 
 ---
 
@@ -122,9 +122,9 @@ This resolves to:
 
 Rules:
 
-* Paths must exist
-* Missing paths cause an assertion failure
-* Arrays must be indexed explicitly (if present)
+- Paths must exist
+- Missing paths cause an assertion failure
+- Arrays must be indexed explicitly (if present)
 
 ---
 
@@ -139,8 +139,8 @@ Multiple assertions are evaluated independently.
 }
 ```
 
-* All assertions must pass
-* Failures are aggregated per run
+- All assertions must pass
+- Failures are aggregated per run
 
 ---
 
@@ -148,12 +148,13 @@ Multiple assertions are evaluated independently.
 
 When an assertion fails:
 
-* The failure is recorded with context:
+- The failure is recorded with context:
 
-  * Fixture path
-  * Assertion error
-* The run is marked as failed
-* In CI mode, execution stops immediately
+  - Fixture path
+  - Assertion error
+
+- The run is marked as failed
+- In CI mode, execution stops immediately
 
 Example failure message:
 
@@ -167,13 +168,13 @@ Example failure message:
 
 Assertions and snapshots serve different purposes:
 
-* **Assertions**: explicit, intentional correctness checks
-* **Snapshots**: regression detection for broader output changes
+- **Assertions**: explicit, intentional correctness checks
+- **Snapshots**: regression detection for broader output changes
 
 Best practice:
 
-* Use assertions for invariants
-* Use snapshots for complex or evolving output
+- Use assertions for invariants
+- Use snapshots for complex or evolving output
 
 ---
 
@@ -191,7 +192,7 @@ If the action returns `ok=false`, assertions are still evaluated.
 
 ## Default Scaffolded Assertions
 
-When running `hsemulator init`, a default `assertions.json` is created:
+When running `hsemulate init`, a default `assertions.json` is created:
 
 ```json
 {
@@ -206,8 +207,8 @@ This is intended as a minimal correctness check and should be adapted.
 
 ## Summary
 
-* Assertions are strict and fatal
-* CLI assertions override all others
-* Missing paths fail
-* All assertions must pass
-* Assertions are evaluated per fixture and per repeat
+- Assertions are strict and fatal
+- CLI assertions override all others
+- Missing paths fail
+- All assertions must pass
+- Assertions are evaluated per fixture and per repeat

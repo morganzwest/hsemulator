@@ -12,10 +12,10 @@ A snapshot is the **full JSON output envelope** produced by a successful action 
 
 It includes:
 
-* `ok` status
-* `meta` (timings, memory, fixture context)
-* `output` (the action’s returned payload)
-* `failures` (if present)
+- `ok` status
+- `meta` (timings, memory, fixture context)
+- `output` (the action’s returned payload)
+- `failures` (if present)
 
 Snapshots are compared **byte-for-byte at the JSON structure level**, not textually.
 
@@ -37,7 +37,7 @@ snapshots:
 ### Via CLI
 
 ```bash
-hsemulator run --snapshot
+hsemulate run --snapshot
 ```
 
 This forces `snapshots.enabled = true` for the run.
@@ -47,7 +47,7 @@ This forces `snapshots.enabled = true` for the run.
 ### Automatically in CI Mode
 
 ```bash
-hsemulator test
+hsemulate test
 ```
 
 CI mode always enables snapshots.
@@ -73,14 +73,14 @@ The directory is created automatically if it does not exist.
 
 Each snapshot is uniquely keyed by:
 
-* The canonical action file path
-* The fixture path
+- The canonical action file path
+- The fixture path
 
 This means:
 
-* Each action + fixture pair has its own snapshot
-* Different fixtures never share snapshots
-* Changing the action file path results in a new snapshot
+- Each action + fixture pair has its own snapshot
+- Different fixtures never share snapshots
+- Changing the action file path results in a new snapshot
 
 ---
 
@@ -88,11 +88,12 @@ This means:
 
 On the **first run** with snapshots enabled:
 
-* If no snapshot exists:
+- If no snapshot exists:
 
-  * The current output is written as the baseline
-  * The run passes
-* No comparison is performed
+  - The current output is written as the baseline
+  - The run passes
+
+- No comparison is performed
 
 This allows snapshots to be adopted incrementally.
 
@@ -102,8 +103,8 @@ This allows snapshots to be adopted incrementally.
 
 On subsequent runs:
 
-* The current output is compared against the stored snapshot
-* Any difference causes a failure
+- The current output is compared against the stored snapshot
+- Any difference causes a failure
 
 Example failure:
 
@@ -115,10 +116,10 @@ Snapshot mismatch (snapshots/abc123.json): value changed at output.result.total
 
 ## Snapshot Comparison Rules
 
-* Comparison is structural (parsed JSON)
-* Ordering differences are detected
-* Missing or additional fields cause failure
-* All differences are treated as regressions
+- Comparison is structural (parsed JSON)
+- Ordering differences are detected
+- Missing or additional fields cause failure
+- All differences are treated as regressions
 
 There is no fuzzy or tolerance-based comparison.
 
@@ -148,9 +149,9 @@ You should treat all snapshot comparisons as strict.
 
 When `repeat > 1`:
 
-* The snapshot baseline is created from the **first run**
-* Subsequent runs are compared against that baseline
-* Any variation between repeats causes failure
+- The snapshot baseline is created from the **first run**
+- Subsequent runs are compared against that baseline
+- Any variation between repeats causes failure
 
 This makes snapshots a powerful flaky-behaviour detector.
 
@@ -187,14 +188,14 @@ This makes snapshot updates explicit and deliberate.
 
 Use snapshots when:
 
-* Output is complex or nested
-* Multiple fields change together
-* You want regression protection without many assertions
+- Output is complex or nested
+- Multiple fields change together
+- You want regression protection without many assertions
 
 Avoid snapshots when:
 
-* Output contains unavoidable non-determinism
-* You only care about a small number of invariants
+- Output contains unavoidable non-determinism
+- You only care about a small number of invariants
 
 In those cases, prefer assertions.
 
@@ -202,8 +203,8 @@ In those cases, prefer assertions.
 
 ## Summary
 
-* Snapshots are strict and deterministic
-* Baselines are created automatically
-* Comparisons are structural and exact
-* Ignore rules are planned but not yet enforced
-* Snapshot mismatches are fatal
+- Snapshots are strict and deterministic
+- Baselines are created automatically
+- Comparisons are structural and exact
+- Ignore rules are planned but not yet enforced
+- Snapshot mismatches are fatal

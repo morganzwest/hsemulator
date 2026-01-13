@@ -10,8 +10,8 @@ They are designed to catch performance regressions early, **not** to precisely e
 
 hsemulator currently supports two budget types:
 
-* **Time budget** (`duration_ms`)
-* **Memory budget** (`memory_mb`)
+- **Time budget** (`duration_ms`)
+- **Memory budget** (`memory_mb`)
 
 Both budgets are optional and may be enabled independently.
 
@@ -30,7 +30,7 @@ budgets:
 Or overridden via CLI:
 
 ```bash
-hsemulator run --budget-time 500 --budget-mem 128
+hsemulate run --budget-time 500 --budget-mem 128
 ```
 
 CLI values override any budgets defined in `config.yaml`.
@@ -43,15 +43,15 @@ CLI values override any budgets defined in `config.yaml`.
 
 The time budget measures:
 
-* Wall-clock execution time of the action process
-* From process spawn to completion
-* Per run, per fixture
+- Wall-clock execution time of the action process
+- From process spawn to completion
+- Per run, per fixture
 
 It includes:
 
-* Runtime startup
-* Shim execution
-* User code execution
+- Runtime startup
+- Shim execution
+- User code execution
 
 ---
 
@@ -59,16 +59,16 @@ It includes:
 
 Time budgets:
 
-* **Are not a precise match for HubSpot execution limits**
-* **Vary significantly by local machine performance**
-* **Have not been extensively benchmarked against HubSpot**
+- **Are not a precise match for HubSpot execution limits**
+- **Vary significantly by local machine performance**
+- **Have not been extensively benchmarked against HubSpot**
 
 Factors that affect timing:
 
-* CPU speed and load
-* Disk performance
-* Node/Python runtime version
-* OS scheduling
+- CPU speed and load
+- Disk performance
+- Node/Python runtime version
+- OS scheduling
 
 As a result, time budgets should be treated as **relative guards**, not absolute guarantees.
 
@@ -78,14 +78,14 @@ As a result, time budgets should be treated as **relative guards**, not absolute
 
 Use time budgets to:
 
-* Detect accidental slowdowns
-* Prevent runaway loops
-* Enforce “reasonable” execution bounds
+- Detect accidental slowdowns
+- Prevent runaway loops
+- Enforce “reasonable” execution bounds
 
 Do **not** use them to:
 
-* Assert compliance with HubSpot’s exact limits
-* Compare performance across machines
+- Assert compliance with HubSpot’s exact limits
+- Compare performance across machines
 
 ---
 
@@ -95,9 +95,9 @@ Do **not** use them to:
 
 The memory budget measures:
 
-* Peak resident set size (RSS)
-* In kilobytes, converted from `memory_mb`
-* Per run, per fixture
+- Peak resident set size (RSS)
+- In kilobytes, converted from `memory_mb`
+- Per run, per fixture
 
 ---
 
@@ -107,10 +107,10 @@ The memory budget measures:
 
 Important limitations:
 
-* Measurement relies on OS-level process inspection
-* Accuracy varies by platform
-* Short-lived spikes may be missed
-* Behaviour may differ between local and CI environments
+- Measurement relies on OS-level process inspection
+- Accuracy varies by platform
+- Short-lived spikes may be missed
+- Behaviour may differ between local and CI environments
 
 Memory budgets should be considered **best-effort signals**, not strict enforcement.
 
@@ -120,13 +120,13 @@ Memory budgets should be considered **best-effort signals**, not strict enforcem
 
 Use memory budgets to:
 
-* Catch obvious leaks or runaway allocations
-* Flag unexpectedly large memory usage
+- Catch obvious leaks or runaway allocations
+- Flag unexpectedly large memory usage
 
 Do **not** rely on them for:
 
-* Precise memory profiling
-* Hard enforcement against HubSpot limits
+- Precise memory profiling
+- Hard enforcement against HubSpot limits
 
 ---
 
@@ -139,9 +139,9 @@ Budgets are enforced **after execution**, in this order:
 
 If a budget is exceeded:
 
-* The run is marked as failed
-* A failure message is recorded
-* In CI mode, execution stops immediately
+- The run is marked as failed
+- A failure message is recorded
+- In CI mode, execution stops immediately
 
 Example failure:
 
@@ -155,9 +155,9 @@ Example failure:
 
 When `repeat > 1`:
 
-* Budgets are enforced on **every run**
-* A single budget violation fails the entire run
-* Useful for detecting intermittent performance spikes
+- Budgets are enforced on **every run**
+- A single budget violation fails the entire run
+- Useful for detecting intermittent performance spikes
 
 ---
 
@@ -170,8 +170,8 @@ Budgets are evaluated:
 
 A budget failure is treated the same as:
 
-* Assertion failure
-* Snapshot mismatch
+- Assertion failure
+- Snapshot mismatch
 
 All are fatal.
 
@@ -179,18 +179,18 @@ All are fatal.
 
 ## Best Practices
 
-* Start with generous limits
-* Tighten budgets gradually
-* Prefer assertions for correctness
-* Prefer snapshots for regression detection
-* Treat budgets as **early warning systems**, not exact replicas of HubSpot
+- Start with generous limits
+- Tighten budgets gradually
+- Prefer assertions for correctness
+- Prefer snapshots for regression detection
+- Treat budgets as **early warning systems**, not exact replicas of HubSpot
 
 ---
 
 ## Summary
 
-* Budgets are optional but powerful
-* Time budgets are approximate and machine-dependent
-* Memory budgets are experimental
-* CLI overrides always win
-* Any budget violation fails the run
+- Budgets are optional but powerful
+- Time budgets are approximate and machine-dependent
+- Memory budgets are experimental
+- CLI overrides always win
+- Any budget violation fails the run

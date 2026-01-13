@@ -14,10 +14,7 @@ use std::path::{Path, PathBuf};
 /// fixtures.dir = "fixtures"
 /// → resolves to `/project/fixtures`
 #[allow(dead_code)]
-pub fn resolve_dir_relative_to_config(
-    config_path: &Path,
-    rel_dir: &str,
-) -> Result<PathBuf> {
+pub fn resolve_dir_relative_to_config(config_path: &Path, rel_dir: &str) -> Result<PathBuf> {
     let base = config_path
         .parent()
         .context("Config path has no parent directory")?;
@@ -30,8 +27,7 @@ pub fn resolve_dir_relative_to_config(
 /// - fixture JSON
 /// - assertion JSON
 pub fn read_to_string(path: &Path) -> Result<String> {
-    std::fs::read_to_string(path)
-        .with_context(|| format!("Failed to read file {:?}", path))
+    std::fs::read_to_string(path).with_context(|| format!("Failed to read file {:?}", path))
 }
 
 /// Ensure a directory exists (create it if missing).
@@ -41,8 +37,7 @@ pub fn read_to_string(path: &Path) -> Result<String> {
 /// - creating snapshots
 /// - initialising project scaffolding
 pub fn ensure_dir(path: &Path) -> Result<()> {
-    std::fs::create_dir_all(path)
-        .with_context(|| format!("Failed to create directory {:?}", path))
+    std::fs::create_dir_all(path).with_context(|| format!("Failed to create directory {:?}", path))
 }
 
 /// Build a stable snapshot key from the action filename and fixture name.

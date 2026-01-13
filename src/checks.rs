@@ -122,8 +122,9 @@ pub fn check_budgets(
     }
 
     if let Some(max_mem_kb) = budgets.memory_kb {
-        let actual_kb = max_rss_kb
-            .ok_or_else(|| anyhow::anyhow!("Memory budget set but memory measurement unavailable"))?;
+        let actual_kb = max_rss_kb.ok_or_else(|| {
+            anyhow::anyhow!("Memory budget set but memory measurement unavailable")
+        })?;
 
         if actual_kb > max_mem_kb {
             bail!(

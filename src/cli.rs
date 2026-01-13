@@ -8,11 +8,7 @@ use std::path::PathBuf;
 /// `config.yaml` is the primary source of truth.
 /// CLI flags only override config values.
 #[derive(Parser, Debug)]
-#[command(
-    name = "hsemulate",
-    version,
-    disable_help_subcommand = true
-)]
+#[command(name = "hsemulate", version, disable_help_subcommand = true)]
 pub struct Cli {
     /// Subcommand to execute
     #[command(subcommand)]
@@ -158,7 +154,6 @@ pub enum CicdCommand {
         #[arg(long)]
         branch: Option<String>,
     },
-
 }
 
 /// Supported CI/CD init types.

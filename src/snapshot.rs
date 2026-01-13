@@ -18,8 +18,7 @@ pub fn load_snapshot(path: &Path) -> Result<Value> {
     let raw = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read snapshot file {:?}", path))?;
 
-    let parsed: Value =
-        serde_json::from_str(&raw).context("Snapshot file is not valid JSON")?;
+    let parsed: Value = serde_json::from_str(&raw).context("Snapshot file is not valid JSON")?;
 
     Ok(normalize(parsed))
 }
@@ -33,8 +32,8 @@ pub fn write_snapshot(path: &Path, value: &Value) -> Result<()> {
 
     let normalized = normalize(value.clone());
 
-    let bytes = serde_json::to_vec_pretty(&normalized)
-        .context("Failed to serialise snapshot JSON")?;
+    let bytes =
+        serde_json::to_vec_pretty(&normalized).context("Failed to serialise snapshot JSON")?;
 
     std::fs::write(path, bytes)
         .with_context(|| format!("Failed to write snapshot file {:?}", path))?;
@@ -84,9 +83,7 @@ fn normalize(value: Value) -> Value {
             Value::Object(normalized)
         }
 
-        Value::Array(arr) => {
-            Value::Array(arr.into_iter().map(normalize).collect())
-        }
+        Value::Array(arr) => Value::Array(arr.into_iter().map(normalize).collect()),
 
         other => other,
     }

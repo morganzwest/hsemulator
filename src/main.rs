@@ -15,15 +15,15 @@
 //! There is intentionally *no business logic* here.
 
 mod checks;
-mod cli;
 mod cicd;
+mod cli;
 mod config;
 mod metrics;
+mod promote;
 mod runner;
 mod shim;
 mod snapshot;
 mod util;
-mod promote;
 
 use anyhow::Result;
 use clap::Parser;

@@ -1,14 +1,14 @@
 // src/runner.rs
 
 use crate::checks::{assert_json, check_budgets, BudgetsResolved};
+use crate::cicd;
 use crate::cli::{Cli, Command};
 use crate::config::{Assertion, Budgets, Config, Mode, OutputMode};
 use crate::metrics::{InvocationMetrics, MemoryTracker};
+use crate::promote;
 use crate::shim::{node_shim, python_shim};
 use crate::snapshot::{compare_snapshot, load_snapshot, snapshot_path, write_snapshot};
 use crate::util::{ensure_dir, read_to_string, snapshot_key};
-use crate::cicd;
-use crate::promote;
 
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
@@ -58,13 +58,13 @@ pub async fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Init { language } => init_scaffold(language),
 
-        Command::Cicd { command } => {
-            cicd::handle(command)
-        },
+        Command::Cicd { command } => cicd::handle(command),
 
-        Command::Promote { target, force, config } => {
-            promote::handle(target, force, config).await
-        }
+        Command::Promote {
+            target,
+            force,
+            config,
+        } => promote::handle(target, force, config).await,
 
         Command::Test { config } => run_test_mode(config).await,
 
@@ -101,7 +101,11 @@ pub async fn run(cli: Cli) -> Result<()> {
                 cfg.repeat = r;
             }
             if budget_time.is_some() || budget_mem.is_some() {
-                cfg.budgets = Some(resolve_budgets(cfg.budgets.clone(), budget_time, budget_mem));
+                cfg.budgets = Some(resolve_budgets(
+                    cfg.budgets.clone(),
+                    budget_time,
+                    budget_mem,
+                ));
             }
 
             if cfg.watch {
@@ -294,12 +298,9 @@ async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSum
     let emit_stdout = !matches!(cfg.mode, Mode::Ci) && !write_file;
     let use_color = should_use_color();
     let output_file = if write_file {
-        Some(PathBuf::from(
-            cfg.output
-                .file
-                .as_ref()
-                .context("output.file must be set when output.mode = file")?,
-        ))
+        Some(PathBuf::from(cfg.output.file.as_ref().context(
+            "output.file must be set when output.mode = file",
+        )?))
     } else {
         None
     };
@@ -450,7 +451,11 @@ async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSum
 
 /* ---------------- invocation ---------------- */
 
-async fn invoke_once(cfg: &Config, action_file: &Path, event: &Value) -> Result<(Value, InvocationMetrics)> {
+async fn invoke_once(
+    cfg: &Config,
+    action_file: &Path,
+    event: &Value,
+) -> Result<(Value, InvocationMetrics)> {
     let tmp = tempdir().context("Failed to create temp dir")?;
 
     // Write event.json for shim
@@ -500,7 +505,8 @@ async fn invoke_once(cfg: &Config, action_file: &Path, event: &Value) -> Result<
     let max_rss_kb = mem.stop_and_take();
 
     let stdout = String::from_utf8(output.stdout).context("stdout not valid UTF-8")?;
-    let parsed: Value = serde_json::from_str(stdout.trim()).context("Shim did not emit valid JSON")?;
+    let parsed: Value =
+        serde_json::from_str(stdout.trim()).context("Shim did not emit valid JSON")?;
 
     Ok((
         parsed,
@@ -552,7 +558,10 @@ fn build_output_envelope(ctx: &RenderContext<'_>) -> Value {
         "action".to_string(),
         Value::String(ctx.action_file.display().to_string()),
     );
-    meta.insert("fixture".to_string(), Value::String(ctx.fixture.to_string()));
+    meta.insert(
+        "fixture".to_string(),
+        Value::String(ctx.fixture.to_string()),
+    );
     if ctx.runs > 1 {
         meta.insert("run".to_string(), Value::Number((ctx.run_idx + 1).into()));
         meta.insert("runs".to_string(), Value::Number(ctx.runs.into()));
@@ -563,7 +572,11 @@ fn build_output_envelope(ctx: &RenderContext<'_>) -> Value {
         .unwrap_or_else(|_| Value::String(ctx.metrics.duration_ms.to_string()));
     meta.insert("duration_ms".to_string(), duration_value);
 
-    let mem_value = ctx.metrics.max_rss_kb.map(Value::from).unwrap_or(Value::Null);
+    let mem_value = ctx
+        .metrics
+        .max_rss_kb
+        .map(Value::from)
+        .unwrap_or(Value::Null);
     meta.insert("max_rss_kb".to_string(), mem_value);
 
     let mut envelope = serde_json::Map::new();
@@ -614,8 +627,12 @@ fn render_output(
     use_color: bool,
 ) -> Result<String> {
     match mode {
-        OutputMode::Stdout => serde_json::to_string(envelope).context("Failed to format output as JSON"),
-        OutputMode::Pretty => serde_json::to_string_pretty(envelope).context("Failed to format output as pretty JSON"),
+        OutputMode::Stdout => {
+            serde_json::to_string(envelope).context("Failed to format output as JSON")
+        }
+        OutputMode::Pretty => {
+            serde_json::to_string_pretty(envelope).context("Failed to format output as pretty JSON")
+        }
         OutputMode::Simple => format_simple_output(ctx, use_color),
         OutputMode::File => bail!("output.mode = file should be handled separately"),
     }
@@ -655,7 +672,8 @@ fn format_simple_output(ctx: &RenderContext<'_>, use_color: bool) -> Result<Stri
     let simple = select_simple_output(ctx.output);
     if simple != &Value::Null {
         out.push_str("output:\n");
-        let rendered = serde_json::to_string_pretty(simple).context("Failed to format simple output")?;
+        let rendered =
+            serde_json::to_string_pretty(simple).context("Failed to format simple output")?;
         out.push_str(&rendered);
         out.push('\n');
     }
@@ -687,7 +705,8 @@ fn write_output_file(path: &Path, payload: &Value) -> Result<()> {
 
     let bytes = serde_json::to_vec_pretty(payload).context("Failed to serialize output JSON")?;
 
-    std::fs::write(path, bytes).with_context(|| format!("Failed to write output file {:?}", path))?;
+    std::fs::write(path, bytes)
+        .with_context(|| format!("Failed to write output file {:?}", path))?;
 
     Ok(())
 }

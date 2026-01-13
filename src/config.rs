@@ -193,8 +193,7 @@ impl Config {
         let raw = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {:?}", path))?;
 
-        let cfg: Config =
-            serde_yaml::from_str(&raw).context("Failed to parse YAML config")?;
+        let cfg: Config = serde_yaml::from_str(&raw).context("Failed to parse YAML config")?;
 
         cfg.validate()?;
         Ok(cfg)

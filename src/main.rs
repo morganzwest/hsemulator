@@ -16,12 +16,14 @@
 
 mod checks;
 mod cli;
+mod cicd;
 mod config;
 mod metrics;
 mod runner;
 mod shim;
 mod snapshot;
 mod util;
+mod promote;
 
 use anyhow::Result;
 use clap::Parser;

@@ -50,6 +50,7 @@ running-actions
 assertions
 snapshots
 budgets
+cicd-promotion
 ```
 
 ---

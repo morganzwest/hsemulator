@@ -1,6 +1,6 @@
 // src/cli.rs
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 /// Local HubSpot Custom Code runner (JavaScript / Python).
@@ -107,4 +107,63 @@ pub enum Command {
         #[arg(value_parser = ["js", "python"])]
         language: Option<String>,
     },
+
+    /// CI/CD related commands.
+    Cicd {
+        #[command(subcommand)]
+        command: CicdCommand,
+    },
+
+    /// Promote the currently tested code into a HubSpot workflow action.
+    ///
+    /// This is a gated promotion step. Use --force to bypass test gates.
+    Promote {
+        /// Promotion target name from .hsemulator/cicd.yaml (e.g. "production")
+        target: String,
+
+        /// Force promotion (skips test gating)
+        #[arg(long)]
+        force: bool,
+
+        /// Path to action config file (defaults to ./config.yaml)
+        #[arg(short, long, default_value = "config.yaml")]
+        config: PathBuf,
+    },
+}
+
+/// CI/CD subcommands.
+#[derive(Subcommand, Debug)]
+pub enum CicdCommand {
+    /// Initialise CI/CD configuration.
+    ///
+    /// - `cicd init` → creates .hsemulator/cicd.yaml
+    /// - `cicd init action` → also creates GitHub Actions workflow
+    Init {
+        /// Runtime language for the action
+        ///
+        /// Required: js | python
+        #[arg(value_parser = ["js", "python"])]
+        runtime: String,
+
+        /// Optional init type (e.g. GitHub Actions)
+        ///
+        /// Currently supported:
+        /// - action
+        #[arg(value_enum)]
+        kind: Option<CicdInitKind>,
+
+        /// Git branch to trigger CI/CD on
+        ///
+        /// Only valid when `kind = action`
+        #[arg(long)]
+        branch: Option<String>,
+    },
+
+}
+
+/// Supported CI/CD init types.
+#[derive(ValueEnum, Debug, Clone)]
+pub enum CicdInitKind {
+    /// Initialise GitHub Actions workflow.
+    Action,
 }

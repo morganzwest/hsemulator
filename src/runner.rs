@@ -7,6 +7,8 @@ use crate::metrics::{InvocationMetrics, MemoryTracker};
 use crate::shim::{node_shim, python_shim};
 use crate::snapshot::{compare_snapshot, load_snapshot, snapshot_path, write_snapshot};
 use crate::util::{ensure_dir, read_to_string, snapshot_key};
+use crate::cicd;
+use crate::promote;
 
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
@@ -55,6 +57,14 @@ fn write_last_test_result(summary: &LastTestResult) -> Result<()> {
 pub async fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Init { language } => init_scaffold(language),
+
+        Command::Cicd { command } => {
+            cicd::handle(command)
+        },
+
+        Command::Promote { target, force, config } => {
+            promote::handle(target, force, config).await
+        }
 
         Command::Test { config } => run_test_mode(config).await,
 

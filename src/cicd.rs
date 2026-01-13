@@ -104,6 +104,8 @@ targets:
     safety:
       require_clean_tests: true
       require_snapshot_match: true
+
+      # Recommended: 4000ms for local testing and deployment, 20000ms/50000ms for CI/CD
       max_duration_ms: 4000
 
     deploy:
@@ -121,29 +123,37 @@ name: hsemulator
 
 on:
   push:
-    branches: [{branch}]
+    branches: [main]
 
 jobs:
   test-and-promote:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install hsemulator
+        shell: pwsh
         run: |
-          curl -L https://github.com/morganzwest/hsemulator/releases/latest/download/hsemulator-linux \
-          -o hsemulator
-          chmod +x hsemulator
+          Invoke-WebRequest -Uri "https://github.com/morganzwest/hsemulator/releases/latest/download/hsemulate.exe" -OutFile "hsemulate.exe"
+
+      - name: Verify binary
+        shell: pwsh
+        run: |
+          Get-Item hsemulate.exe
 
       - name: Run tests
-        run: ./hsemulator test
+        shell: pwsh
+        run: .\hsemulate.exe test
+        env:
+          HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
 
       - name: Promote
-        if: success()
-        run: ./hsemulator promote production
+        shell: pwsh
+        run: .\hsemulate.exe promote production
         env:
-          HUBSPOT_TOKEN: ${{{{ secrets.HUBSPOT_TOKEN }}}}
+          HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
+
 "#
     )
 }

@@ -9,6 +9,7 @@ use crate::snapshot::{compare_snapshot, load_snapshot, snapshot_path, write_snap
 use crate::util::{ensure_dir, read_to_string, snapshot_key};
 
 use anyhow::{bail, Context, Result};
+use chrono::Utc;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -25,6 +26,29 @@ struct ExecSummary {
     ok: bool,
     failures: Vec<String>,
     runs: u64,
+    max_duration_ms: Option<u128>,
+    max_memory_kb: Option<u64>,
+    snapshots_ok: bool,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct LastTestResult {
+    ok: bool,
+    snapshots_ok: bool,
+    max_duration_ms: Option<u128>,
+    max_memory_kb: Option<u64>,
+    run_at: String,
+}
+
+fn write_last_test_result(summary: &LastTestResult) -> Result<()> {
+    let dir = Path::new(".hsemulator");
+    ensure_dir(dir)?;
+
+    let path = dir.join("last-test.json");
+    let bytes = serde_json::to_vec_pretty(summary).context("Failed to serialize last-test.json")?;
+    std::fs::write(&path, bytes).with_context(|| format!("Failed to write {:?}", path))?;
+
+    Ok(())
 }
 
 /// Entry point from `main.rs`.
@@ -99,6 +123,10 @@ async fn run_test_mode(config_arg: PathBuf) -> Result<()> {
     };
 
     let mut any_fail = false;
+    let mut all_snapshots_ok = true;
+    let mut max_duration_ms: Option<u128> = None;
+    let mut max_memory_kb: Option<u64> = None;
+
     let mut results: Vec<Value> = Vec::new();
 
     for cfg_path in configs {
@@ -110,10 +138,30 @@ async fn run_test_mode(config_arg: PathBuf) -> Result<()> {
         if !summary.ok {
             any_fail = true;
         }
+        if !summary.snapshots_ok {
+            all_snapshots_ok = false;
+        }
+
+        max_duration_ms = match (max_duration_ms, summary.max_duration_ms) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (None, Some(b)) => Some(b),
+            (Some(a), None) => Some(a),
+            (None, None) => None,
+        };
+
+        max_memory_kb = match (max_memory_kb, summary.max_memory_kb) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (None, Some(b)) => Some(b),
+            (Some(a), None) => Some(a),
+            (None, None) => None,
+        };
 
         results.push(serde_json::json!({
             "config": cfg_path.to_string_lossy(),
             "ok": summary.ok,
+            "snapshots_ok": summary.snapshots_ok,
+            "max_duration_ms": summary.max_duration_ms,
+            "max_memory_kb": summary.max_memory_kb,
             "runs": summary.runs,
             "failures": summary.failures,
         }));
@@ -125,6 +173,17 @@ async fn run_test_mode(config_arg: PathBuf) -> Result<()> {
         "results": results
     });
     println!("{}", serde_json::to_string(&out)?);
+
+    // Persist last test results for promotion gating.
+    // Write this regardless of pass/fail so CI has an artifact for "why refused".
+    let last = LastTestResult {
+        ok: !any_fail,
+        snapshots_ok: all_snapshots_ok,
+        max_duration_ms,
+        max_memory_kb,
+        run_at: Utc::now().to_rfc3339(),
+    };
+    write_last_test_result(&last)?;
 
     if any_fail {
         bail!("One or more configs failed");
@@ -159,8 +218,7 @@ async fn execute_with_watch(config_path: PathBuf, assertion_file: Option<PathBuf
     let (tx, rx) = channel();
 
     let mut watcher: RecommendedWatcher =
-        Watcher::new(tx, notify::Config::default())
-            .context("Failed to initialise file watcher")?;
+        Watcher::new(tx, notify::Config::default()).context("Failed to initialise file watcher")?;
 
     // Always watch the specific config file used
     watcher.watch(&config_path, RecursiveMode::NonRecursive)?;
@@ -181,8 +239,7 @@ async fn execute_with_watch(config_path: PathBuf, assertion_file: Option<PathBuf
 
         match execute(cfg, assertion_file.clone()).await {
             Ok(summary) => {
-                // In watch mode, print a compact JSON line in CI mode, otherwise just show failures.
-                if matches!(summary.ok, true) {
+                if summary.ok {
                     eprintln!("OK");
                 } else {
                     eprintln!("FAILED:");
@@ -236,9 +293,14 @@ async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSum
     } else {
         None
     };
-    let mut file_outputs: Vec<Value> = Vec::new();
 
+    let mut file_outputs: Vec<Value> = Vec::new();
     let mut failures_all: Vec<String> = Vec::new();
+
+    // Aggregates across all fixtures/runs for CICD gating
+    let mut max_duration_ms: Option<u128> = None;
+    let mut max_memory_kb: Option<u64> = None;
+    let mut snapshots_ok = true;
 
     for fixture in &cfg.fixtures {
         let event: Value = serde_json::from_str(&read_to_string(Path::new(fixture))?)
@@ -257,6 +319,18 @@ async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSum
 
         for run_idx in 0..runs {
             let (output, metrics) = invoke_once(&cfg, &action_file, &event).await?;
+
+            // Aggregate max duration/memory for CICD gating
+            max_duration_ms = Some(
+                max_duration_ms
+                    .map(|d| d.max(metrics.duration_ms))
+                    .unwrap_or(metrics.duration_ms),
+            );
+
+            if let Some(mem) = metrics.max_rss_kb {
+                max_memory_kb = Some(max_memory_kb.map(|m| m.max(mem)).unwrap_or(mem));
+            }
+
             let mut failures = Vec::new();
 
             if !output.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
@@ -293,14 +367,13 @@ async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSum
                     write_snapshot(&snap_path, &output)?;
                     baseline = Some(output.clone());
                 } else if let Some(b) = &baseline {
-                    // If you implement snapshot ignore rules, update compare_snapshot signature:
-                    // compare_snapshot(b, &output, &cfg.snapshots.ignore)?
                     if let Err(e) = compare_snapshot(b, &output) {
+                        snapshots_ok = false;
                         failures.push(format!(
-    "Snapshot mismatch ({}): {}",
-    snap_path.display(),
-    e
-));
+                            "Snapshot mismatch ({}): {}",
+                            snap_path.display(),
+                            e
+                        ));
                     }
                 }
             }
@@ -317,8 +390,7 @@ async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSum
             let envelope = build_output_envelope(&render_ctx);
 
             if emit_stdout {
-                let rendered =
-                    render_output(&cfg.output.mode, &render_ctx, &envelope, use_color)?;
+                let rendered = render_output(&cfg.output.mode, &render_ctx, &envelope, use_color)?;
                 println!("{}", rendered);
             }
 
@@ -338,6 +410,9 @@ async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSum
                         ok: false,
                         failures: failures_all,
                         runs,
+                        max_duration_ms,
+                        max_memory_kb,
+                        snapshots_ok,
                     });
                 }
             }
@@ -357,16 +432,15 @@ async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSum
         ok: failures_all.is_empty(),
         failures: failures_all,
         runs,
+        max_duration_ms,
+        max_memory_kb,
+        snapshots_ok,
     })
 }
 
 /* ---------------- invocation ---------------- */
 
-async fn invoke_once(
-    cfg: &Config,
-    action_file: &Path,
-    event: &Value,
-) -> Result<(Value, InvocationMetrics)> {
+async fn invoke_once(cfg: &Config, action_file: &Path, event: &Value) -> Result<(Value, InvocationMetrics)> {
     let tmp = tempdir().context("Failed to create temp dir")?;
 
     // Write event.json for shim
@@ -416,8 +490,7 @@ async fn invoke_once(
     let max_rss_kb = mem.stop_and_take();
 
     let stdout = String::from_utf8(output.stdout).context("stdout not valid UTF-8")?;
-    let parsed: Value = serde_json::from_str(stdout.trim())
-        .context("Shim did not emit valid JSON")?;
+    let parsed: Value = serde_json::from_str(stdout.trim()).context("Shim did not emit valid JSON")?;
 
     Ok((
         parsed,
@@ -480,18 +553,11 @@ fn build_output_envelope(ctx: &RenderContext<'_>) -> Value {
         .unwrap_or_else(|_| Value::String(ctx.metrics.duration_ms.to_string()));
     meta.insert("duration_ms".to_string(), duration_value);
 
-    let mem_value = ctx
-        .metrics
-        .max_rss_kb
-        .map(Value::from)
-        .unwrap_or(Value::Null);
+    let mem_value = ctx.metrics.max_rss_kb.map(Value::from).unwrap_or(Value::Null);
     meta.insert("max_rss_kb".to_string(), mem_value);
 
     let mut envelope = serde_json::Map::new();
-    envelope.insert(
-        "ok".to_string(),
-        Value::Bool(ctx.failures.is_empty()),
-    );
+    envelope.insert("ok".to_string(), Value::Bool(ctx.failures.is_empty()));
     envelope.insert("meta".to_string(), Value::Object(meta));
     envelope.insert("output".to_string(), ctx.output.clone());
     if !ctx.failures.is_empty() {
@@ -538,10 +604,8 @@ fn render_output(
     use_color: bool,
 ) -> Result<String> {
     match mode {
-        OutputMode::Stdout => serde_json::to_string(envelope)
-            .context("Failed to format output as JSON"),
-        OutputMode::Pretty => serde_json::to_string_pretty(envelope)
-            .context("Failed to format output as pretty JSON"),
+        OutputMode::Stdout => serde_json::to_string(envelope).context("Failed to format output as JSON"),
+        OutputMode::Pretty => serde_json::to_string_pretty(envelope).context("Failed to format output as pretty JSON"),
         OutputMode::Simple => format_simple_output(ctx, use_color),
         OutputMode::File => bail!("output.mode = file should be handled separately"),
     }
@@ -553,11 +617,7 @@ fn format_simple_output(ctx: &RenderContext<'_>, use_color: bool) -> Result<Stri
     let status = paint(status, if ok { "32" } else { "31" }, use_color);
 
     let mut out = String::new();
-    out.push_str(&format!(
-        "{} {}\n",
-        status,
-        ctx.action_file.display()
-    ));
+    out.push_str(&format!("{} {}\n", status, ctx.action_file.display()));
     out.push_str(&format!("fixture: {}\n", ctx.fixture));
     if ctx.runs > 1 {
         out.push_str(&format!("run: {}/{}\n", ctx.run_idx + 1, ctx.runs));
@@ -585,8 +645,7 @@ fn format_simple_output(ctx: &RenderContext<'_>, use_color: bool) -> Result<Stri
     let simple = select_simple_output(ctx.output);
     if simple != &Value::Null {
         out.push_str("output:\n");
-        let rendered = serde_json::to_string_pretty(simple)
-            .context("Failed to format simple output")?;
+        let rendered = serde_json::to_string_pretty(simple).context("Failed to format simple output")?;
         out.push_str(&rendered);
         out.push('\n');
     }
@@ -616,11 +675,9 @@ fn write_output_file(path: &Path, payload: &Value) -> Result<()> {
         }
     }
 
-    let bytes = serde_json::to_vec_pretty(payload)
-        .context("Failed to serialize output JSON")?;
+    let bytes = serde_json::to_vec_pretty(payload).context("Failed to serialize output JSON")?;
 
-    std::fs::write(path, bytes)
-        .with_context(|| format!("Failed to write output file {:?}", path))?;
+    std::fs::write(path, bytes).with_context(|| format!("Failed to write output file {:?}", path))?;
 
     Ok(())
 }

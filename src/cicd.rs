@@ -116,7 +116,7 @@ targets:
     )
 }
 
-fn default_github_action(branch: &str) -> String {
+fn default_github_action(_branch: &str) -> String {
     format!(
         r#"
 name: hsemulator

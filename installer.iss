@@ -6,11 +6,11 @@
 
 [Setup]
 AppName=HSEmulate
-AppVersion=0.3.2
+AppVersion=0.3.5
 
 ; Windows metadata (important for winget & Apps & Features)
-VersionInfoVersion=0.3.2
-VersionInfoProductVersion=0.3.2
+VersionInfoVersion=0.3.5
+VersionInfoProductVersion=0.3.5
 VersionInfoProductName=HSEmulate
 VersionInfoDescription=HSEmulate CLI
 
@@ -18,7 +18,7 @@ DefaultDirName={localappdata}\HSEmulate
 DisableProgramGroupPage=yes
 
 OutputDir=dist
-OutputBaseFilename=hsemulate-0.3.2-windows-x64-installer
+OutputBaseFilename=hsemulate-0.3.5-windows-x64-installer
 
 Compression=lzma
 SolidCompression=yes

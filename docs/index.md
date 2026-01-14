@@ -51,6 +51,7 @@ assertions
 snapshots
 budgets
 cicd-promotion
+github-actions
 ```
 
 ---

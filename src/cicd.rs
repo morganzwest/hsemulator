@@ -127,30 +127,44 @@ on:
 
 jobs:
   test-and-promote:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install hsemulator
-        shell: pwsh
+      - name: Install hsemulator (latest Linux)
+        shell: bash
         run: |
-          Invoke-WebRequest -Uri "https://github.com/morganzwest/hsemulator/releases/latest/download/hsemulate.exe" -OutFile "hsemulate.exe"
+          set -e
+
+          echo "Fetching latest hsemulator Linux release…"
+
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/morganzwest/hsemulator/releases/latest \
+            | jq -r '.assets[] | select(.name | test("linux-x64")) | .browser_download_url')
+
+          if [ -z "$DOWNLOAD_URL" ]; then
+            echo "❌ Linux x64 asset not found in latest release"
+            exit 1
+          fi
+
+          curl -L "$DOWNLOAD_URL" -o hsemulator
+          chmod +x hsemulator
 
       - name: Verify binary
-        shell: pwsh
+        shell: bash
         run: |
-          Get-Item hsemulate.exe
+          ls -lh hsemulator
+          ./hsemulator --version || true
 
       - name: Run tests
-        shell: pwsh
-        run: .\hsemulate.exe test
+        shell: bash
+        run: ./hsemulator test
         env:
           HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
 
       - name: Promote
-        shell: pwsh
-        run: .\hsemulate.exe promote production
+        shell: bash
+        run: ./hsemulator promote production
         env:
           HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
 

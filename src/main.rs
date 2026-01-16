@@ -27,10 +27,12 @@ mod shim;
 mod snapshot;
 mod util;
 mod execution_id;
+mod auth;
 
 
 use anyhow::Result;
 use clap::Parser;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Program entry point.
 ///
@@ -38,6 +40,16 @@ use clap::Parser;
 /// asynchronously (Node / Python runtimes).
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
+
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "hsemulate=info,tower_http=info".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
     // Parse CLI arguments (run / init / flags)
     let cli = cli::Cli::parse();
 

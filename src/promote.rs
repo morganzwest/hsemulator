@@ -284,7 +284,8 @@ fn load_last_test(path: &Path) -> Result<LastTestResult> {
 /// Loads action source via config.yaml's `action.entry`.
 fn load_action_source(config_path: &Path) -> Result<String> {
     let cfg = Config::load(config_path)?;
-    let entry = PathBuf::from(&cfg.action.entry);
+    let action = cfg.action.as_ref().expect("config validated");
+    let entry = PathBuf::from(&action.entry);
     let code = read_to_string(&entry)
         .with_context(|| format!("Failed to read action.entry at {:?}", entry))?;
     Ok(code)

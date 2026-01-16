@@ -11,7 +11,9 @@ use std::{collections::BTreeMap, fs, path::Path};
 #[derive(Debug, Deserialize)]
 pub struct Config {
     /// Action configuration (required)
-    pub action: Action,
+    #[serde(default)]
+    pub action: Option<Action>,
+
 
     /// One or more fixture files
     #[serde(default)]
@@ -200,14 +202,175 @@ impl Config {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.fixtures.is_empty() {
-            anyhow::bail!("At least one fixture must be defined in `fixtures`");
+        let action = self.action.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "Missing `action` configuration in config.yaml.\n\
+                Uncomment and choose ONE:\n\
+                \n\
+                # JavaScript\n\
+                action:\n\
+                type: js\n\
+                entry: actions/action.js\n\
+                \n\
+                # Python\n\
+                action:\n\
+                type: python\n\
+                entry: actions/action.py"
+            )
+        })?;
+
+        // ---------- action ----------
+        let entry = action.entry.trim();
+        if entry.is_empty() {
+            anyhow::bail!(
+                "Missing action.entry in config.yaml.\n\
+                Set one of:\n\
+                - JS:     action: {{ type: js,     entry: actions/action.js }}\n\
+                - Python: action: {{ type: python, entry: actions/action.py }}"
+            );
         }
 
+        let ext = std::path::Path::new(entry)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+
+        let ext_ok = match action.action_type {
+            ActionType::Js => matches!(ext.as_str(), "js" | "mjs" | "cjs"),
+            ActionType::Python => ext == "py",
+        };
+
+        if !ext_ok {
+            anyhow::bail!(
+                "action.type does not match action.entry.\n\
+                - action.type: {:?}\n\
+                - action.entry: {}\n\
+                Expected extensions:\n\
+                - js: js | mjs | cjs\n\
+                - python: py",
+                action.action_type,
+                entry
+            );
+        }
+
+        // Optional but helpful: file existence check (clearer than later runtime errors)
+        let entry_path = std::path::Path::new(entry);
+        if !entry_path.exists() {
+            anyhow::bail!(
+                "action.entry file not found: {}\n\
+                Ensure the path is correct relative to your working directory.",
+                entry
+            );
+        }
+
+        // ---------- fixtures ----------
+        if self.fixtures.is_empty() {
+            anyhow::bail!(
+                "No fixtures configured.\n\
+                Add at least one JSON fixture file, for example:\n\
+                fixtures:\n\
+                - fixtures/event.json"
+            );
+        }
+
+        // Validate each fixture exists + is valid JSON
+        for f in &self.fixtures {
+            let f_trim = f.trim();
+            if f_trim.is_empty() {
+                anyhow::bail!("fixtures contains an empty path. Remove it or set a valid file path.");
+            }
+
+            let p = std::path::Path::new(f_trim);
+            if !p.exists() {
+                anyhow::bail!("Fixture file not found: {}", f_trim);
+            }
+
+            let raw = std::fs::read_to_string(p)
+                .with_context(|| format!("Failed to read fixture file: {}", f_trim))?;
+
+            serde_json::from_str::<serde_json::Value>(&raw)
+                .with_context(|| format!("Fixture is not valid JSON: {}", f_trim))?;
+        }
+
+        // ---------- repeat ----------
         if self.repeat == 0 {
             anyhow::bail!("repeat must be >= 1");
         }
 
+        // ---------- runtime ----------
+        // Ensure runtime strings are not blank (actual resolution is handled at spawn time)
+        if self.runtime.node.trim().is_empty() {
+            anyhow::bail!("runtime.node must be set (e.g. 'node' or a full path to node).");
+        }
+        if self.runtime.python.trim().is_empty() {
+            anyhow::bail!("runtime.python must be set (e.g. 'python' or a full path to python).");
+        }
+
+        // ---------- output ----------
+        if matches!(self.output.mode, OutputMode::File) {
+            let file = self
+                .output
+                .file
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+
+            if file.is_none() {
+                anyhow::bail!(
+                    "output.mode is 'file' but output.file is not set.\n\
+                    Example:\n\
+                    output:\n\
+                    mode: file\n\
+                    file: results.json"
+                );
+            }
+        }
+
+        // ---------- budgets ----------
+        if let Some(b) = &self.budgets {
+            if let Some(ms) = b.duration_ms {
+                if ms == 0 {
+                    anyhow::bail!("budgets.duration_ms must be > 0 when set");
+                }
+            }
+            if let Some(mb) = b.memory_mb {
+                if mb == 0 {
+                    anyhow::bail!("budgets.memory_mb must be > 0 when set");
+                }
+            }
+        }
+
+        // ---------- assertions ----------
+        // Basic assertion key sanity so typos fail early
+        for (k, v) in &self.assertions {
+            let key = k.trim();
+            if key.is_empty() {
+                anyhow::bail!("assertions contains an empty key (remove it).");
+            }
+            // For regex assertions, fail fast if the pattern is invalid
+            if let Assertion::Regex { regex } = v {
+                let pat = regex.trim();
+                if pat.is_empty() {
+                    anyhow::bail!("Assertion '{}' has an empty regex pattern.", key);
+                }
+                regex::Regex::new(pat).with_context(|| {
+                    format!("Assertion '{}' has an invalid regex pattern: {}", key, pat)
+                })?;
+            }
+        }
+
+        // Optional: prevent ambiguous dual assertion sources
+        if self.assertions_file.is_some() && !self.assertions.is_empty() {
+            anyhow::bail!(
+                "Both assertions_file and inline assertions are set.\n\
+                Choose one:\n\
+                - use assertions_file (recommended for larger suites), OR\n\
+                - keep inline assertions and remove assertions_file."
+            );
+        }
+
         Ok(())
     }
+
 }

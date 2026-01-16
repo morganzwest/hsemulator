@@ -16,7 +16,8 @@ use std::path::PathBuf;
 #[command(
     name = "hsemulate",
     version,
-    disable_help_subcommand = true
+    disable_help_subcommand = true,
+    arg_required_else_help = true
 )]
 pub struct Cli {
     /// Command to execute

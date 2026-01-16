@@ -2,13 +2,14 @@
 
 use crate::checks::{assert_json, check_budgets, BudgetsResolved};
 use crate::cicd;
-use crate::cli::{Cli, Command, ConfigCommand};
+use crate::cli::{Cli, Command};
 use crate::config::{Assertion, Budgets, Config, Mode, OutputMode};
 use crate::metrics::{InvocationMetrics, MemoryTracker};
 use crate::promote;
 use crate::shim::{node_shim, python_shim};
 use crate::snapshot::{compare_snapshot, load_snapshot, snapshot_path, write_snapshot};
 use crate::util::{ensure_dir, read_to_string, snapshot_key};
+use crate::engine;
 
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
@@ -59,11 +60,26 @@ pub async fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Init { language } => init_scaffold(language),
 
-        Command::Config { command } => handle_config_command(command),
-
         Command::Runtime { listen } => {
             crate::runtime::serve(&listen).await
+        },
+
+        Command::Validate { config } => {
+            let cfg = Config::load(&config)?;
+            let result = engine::validate::validate_config(&cfg)?;
+
+            if result.valid {
+                println!("Config is valid");
+                Ok(())
+            } else {
+                for err in result.errors {
+                    eprintln!("✖ [{}] {}", err.code, err.message);
+                }
+                bail!("Validation failed");
+            }
         }
+
+
 
 
         Command::Cicd { command } => cicd::handle(command),
@@ -295,7 +311,11 @@ pub(crate) async fn execute(
     cfg: Config,
     assertion_file: Option<PathBuf>,
 ) -> Result<ExecSummary> {
-    let action = cfg.action.as_ref().expect("config validated");
+    let action = cfg
+        .action
+        .as_ref()
+        .context("Missing action configuration")?;
+
 
     let action_file = PathBuf::from(&action.entry)
         .canonicalize()
@@ -927,16 +947,4 @@ def main(event):
         print(e)
         raise
 "#
-}
-
-fn handle_config_command(command: ConfigCommand) -> Result<()> {
-    match command {
-        ConfigCommand::Validate { config } => {
-            Config::load(&config)?;
-
-            println!("Config OK: {}", config.to_string_lossy());
-
-            Ok(())
-        }
-    }
 }

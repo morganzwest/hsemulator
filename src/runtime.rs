@@ -1,62 +1,71 @@
 use crate::config::Config;
-use crate::engine::execute_action;
+use crate::engine::{execute_action, validate_config};
 use axum::{
-    routing::post,
+    routing::{get, post},
     Json, Router,
     http::StatusCode,
-    response::IntoResponse,
 };
-use serde::Deserialize;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
-#[derive(Deserialize)]
-struct ExecuteRequest {
-    config: Config,
-}
-
 pub async fn serve(addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
-        .route("/health", post(health))
-        .route("/execute", post(execute));
+        .route("/health", get(health))
+        .route("/execute", post(execute))
+        .route("/validate", post(validate));
 
     let addr: SocketAddr = addr.parse()?;
     let listener = TcpListener::bind(addr).await?;
 
     eprintln!("hsemulate runtime listening on http://{}", addr);
-    eprintln!("health check: http://{}/health", addr);
-    eprintln!("execute endpoint: POST http://{}/execute", addr);
+    eprintln!("health check:   GET  http://{}/health", addr);
+    eprintln!("execute action: POST http://{}/execute", addr);
+    eprintln!("validate config: POST http://{}/validate", addr);
 
     axum::serve(listener, app).await?;
-
     Ok(())
 }
 
+/* ---------------- endpoints ---------------- */
 
 async fn health() -> &'static str {
     "ok"
 }
 
 async fn execute(
-    Json(req): Json<ExecuteRequest>,
-) -> impl IntoResponse {
-    match execute_action(req.config, None).await {
+    Json(cfg): Json<Config>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    match execute_action(cfg, None).await {
         Ok(result) => (
             StatusCode::OK,
-            Json(serde_json::json!({
-                "ok": result.ok,
-                "runs": result.runs,
-                "failures": result.failures,
-                "max_duration_ms": result.max_duration_ms,
-                "max_memory_kb": result.max_memory_kb,
-                "snapshots_ok": result.snapshots_ok
-            })),
+            Json(serde_json::to_value(result).unwrap()),
         ),
         Err(e) => (
-            StatusCode::BAD_REQUEST,
+            StatusCode::OK,
             Json(serde_json::json!({
                 "ok": false,
                 "error": e.to_string()
+            })),
+        ),
+    }
+}
+
+async fn validate(
+    Json(cfg): Json<Config>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    match validate_config(&cfg) {
+        Ok(result) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(result).unwrap()),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "valid": false,
+                "errors": [{
+                    "code": "VALIDATION_EXCEPTION",
+                    "message": e.to_string()
+                }]
             })),
         ),
     }

@@ -18,6 +18,12 @@ pub struct Cli {
 /// All supported CLI commands.
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    Validate {
+        /// Path to config file
+        #[arg(short, long, default_value = "config.yaml")]
+        config: PathBuf,
+    },
+
     /// Run a HubSpot custom code action locally.
     ///
     /// If no arguments are provided, this defaults to:
@@ -117,10 +123,10 @@ pub enum Command {
     },
 
     /// Config-related commands
-    Config {
-        #[command(subcommand)]
-        command: ConfigCommand,
-    },
+    // Config {
+    //     #[command(subcommand)]
+    //     command: ConfigCommand,
+    // },
 
     /// Promote the currently tested code into a HubSpot workflow action.
     ///

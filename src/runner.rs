@@ -2,7 +2,7 @@
 
 use crate::checks::{assert_json, check_budgets, BudgetsResolved};
 use crate::cicd;
-use crate::cli::{Cli, Command};
+use crate::cli::{Cli, Command, ConfigCommand};
 use crate::config::{Assertion, Budgets, Config, Mode, OutputMode};
 use crate::metrics::{InvocationMetrics, MemoryTracker};
 use crate::promote;
@@ -57,6 +57,8 @@ fn write_last_test_result(summary: &LastTestResult) -> Result<()> {
 pub async fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Init { language } => init_scaffold(language),
+
+        Command::Config { command } => handle_config_command(command),
 
         Command::Cicd { command } => cicd::handle(command),
 
@@ -915,4 +917,19 @@ def main(event):
         print(e)
         raise
 "#
+}
+
+fn handle_config_command(command: ConfigCommand) -> Result<()> {
+    match command {
+        ConfigCommand::Validate { config } => {
+            Config::load(&config)?;
+
+            println!(
+                "Config OK: {}",
+                config.to_string_lossy()
+            );
+
+            Ok(())
+        }
+    }
 }

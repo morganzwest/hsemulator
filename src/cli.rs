@@ -110,6 +110,12 @@ pub enum Command {
         command: CicdCommand,
     },
 
+    /// Config-related commands
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
+
     /// Promote the currently tested code into a HubSpot workflow action.
     ///
     /// This is a gated promotion step. Use --force to bypass test gates.
@@ -161,4 +167,13 @@ pub enum CicdCommand {
 pub enum CicdInitKind {
     /// Initialise GitHub Actions workflow.
     Action,
+}
+
+#[derive(clap::Subcommand, Debug)]
+pub enum ConfigCommand {
+    /// Validate config.yaml and exit
+    Validate {
+        #[arg(default_value = "config.yaml")]
+        config: PathBuf,
+    },
 }

@@ -1,14 +1,16 @@
 use serde::Serialize;
 
-// use crate::config::Config;
-
 pub mod validate;
 pub mod execute;
+pub mod mode;
+pub mod run;
+pub mod response;
 
+pub use mode::ExecutionMode;
 pub use execute::execute_action;
-
-#[allow(unused_imports)]
 pub use validate::validate_config;
+
+/* ---------------- execution output (existing) ---------------- */
 
 #[derive(Debug, Serialize)]
 pub struct ExecutionResult {
@@ -19,6 +21,8 @@ pub struct ExecutionResult {
     pub max_memory_kb: Option<u64>,
     pub snapshots_ok: bool,
 }
+
+/* ---------------- validation ---------------- */
 
 #[derive(Debug, Serialize)]
 pub struct ValidationResult {
@@ -40,7 +44,6 @@ impl ValidationResult {
         }
     }
 
-    #[allow(dead_code)]
     pub fn error(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             valid: false,
@@ -57,5 +60,9 @@ impl ValidationResult {
             code,
             message: message.into(),
         });
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.valid && self.errors.is_empty()
     }
 }

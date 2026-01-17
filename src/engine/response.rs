@@ -1,10 +1,7 @@
 // src/engine/response.rs
 use serde::Serialize;
 
-use crate::{
-    execution_id::ExecutionId,
-    engine::{ValidationError},
-};
+use crate::{engine::ValidationError, execution_id::ExecutionId};
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "mode", rename_all = "lowercase")]

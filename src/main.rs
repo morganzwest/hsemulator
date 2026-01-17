@@ -14,11 +14,13 @@
 //!
 //! There is intentionally *no business logic* here.
 
+mod auth;
 mod checks;
 mod cicd;
 mod cli;
 mod config;
 mod engine;
+mod execution_id;
 mod metrics;
 mod promote;
 mod runner;
@@ -26,9 +28,6 @@ mod runtime;
 mod shim;
 mod snapshot;
 mod util;
-mod execution_id;
-mod auth;
-
 
 use anyhow::Result;
 use clap::Parser;

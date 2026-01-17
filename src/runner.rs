@@ -4,12 +4,12 @@ use crate::checks::{assert_json, check_budgets, BudgetsResolved};
 use crate::cicd;
 use crate::cli::{Cli, Command};
 use crate::config::{Assertion, Budgets, Config, Mode, OutputMode};
+use crate::engine;
 use crate::metrics::{InvocationMetrics, MemoryTracker};
 use crate::promote;
 use crate::shim::{node_shim, python_shim};
 use crate::snapshot::{compare_snapshot, load_snapshot, snapshot_path, write_snapshot};
 use crate::util::{ensure_dir, read_to_string, snapshot_key};
-use crate::engine;
 
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
@@ -33,7 +33,6 @@ pub(crate) struct ExecSummary {
     pub max_memory_kb: Option<u64>,
     pub snapshots_ok: bool,
 }
-
 
 #[derive(Debug, serde::Serialize)]
 struct LastTestResult {
@@ -60,9 +59,7 @@ pub async fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Init { language } => init_scaffold(language),
 
-        Command::Runtime { listen } => {
-            crate::runtime::serve(&listen).await
-        },
+        Command::Runtime { listen } => crate::runtime::serve(&listen).await,
 
         Command::Validate { config } => {
             let cfg = Config::load(&config)?;
@@ -78,9 +75,6 @@ pub async fn run(cli: Cli) -> Result<()> {
                 bail!("Validation failed");
             }
         }
-
-
-
 
         Command::Cicd { command } => cicd::handle(command),
 
@@ -307,15 +301,11 @@ fn clear_screen() {
 
 /* ---------------- core execution ---------------- */
 
-pub(crate) async fn execute(
-    cfg: Config,
-    assertion_file: Option<PathBuf>,
-) -> Result<ExecSummary> {
+pub(crate) async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSummary> {
     let action = cfg
         .action
         .as_ref()
         .context("Missing action configuration")?;
-
 
     let action_file = PathBuf::from(&action.entry)
         .canonicalize()

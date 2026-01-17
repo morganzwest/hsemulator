@@ -23,10 +23,7 @@ fn validate_action(cfg: &Config, result: &mut ValidationResult) -> Result<()> {
     let action = match &cfg.action {
         Some(a) => a,
         None => {
-            result.push_error(
-                "ACTION_MISSING",
-                "No action defined in config",
-            );
+            result.push_error("ACTION_MISSING", "No action defined in config");
             return Ok(());
         }
     };
@@ -64,10 +61,7 @@ fn validate_action(cfg: &Config, result: &mut ValidationResult) -> Result<()> {
 
 fn validate_fixtures(cfg: &Config, result: &mut ValidationResult) -> Result<()> {
     if cfg.fixtures.is_empty() {
-        result.push_error(
-            "FIXTURES_EMPTY",
-            "At least one fixture must be provided",
-        );
+        result.push_error("FIXTURES_EMPTY", "At least one fixture must be provided");
         return Ok(());
     }
 
@@ -120,18 +114,12 @@ fn validate_runtime(cfg: &Config, result: &mut ValidationResult) -> Result<()> {
     match ext {
         "py" => {
             if cfg.runtime.python.trim().is_empty() {
-                result.push_error(
-                    "RUNTIME_PYTHON_MISSING",
-                    "Python runtime is not configured",
-                );
+                result.push_error("RUNTIME_PYTHON_MISSING", "Python runtime is not configured");
             }
         }
         "js" | "mjs" | "cjs" => {
             if cfg.runtime.node.trim().is_empty() {
-                result.push_error(
-                    "RUNTIME_NODE_MISSING",
-                    "Node runtime is not configured",
-                );
+                result.push_error("RUNTIME_NODE_MISSING", "Node runtime is not configured");
             }
         }
         _ => {}
@@ -139,7 +127,6 @@ fn validate_runtime(cfg: &Config, result: &mut ValidationResult) -> Result<()> {
 
     Ok(())
 }
-
 
 /* ---------------- budgets ---------------- */
 

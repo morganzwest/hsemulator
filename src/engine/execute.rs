@@ -2,8 +2,8 @@ use anyhow::{bail, Result};
 use std::path::PathBuf;
 
 use crate::config::Config;
-use crate::engine::{ExecutionResult};
 use crate::engine::validate::validate_config;
+use crate::engine::ExecutionResult;
 
 pub async fn execute_action(
     cfg: Config,

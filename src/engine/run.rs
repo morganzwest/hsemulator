@@ -3,20 +3,13 @@ use anyhow::Result;
 
 use crate::{
     config::Config,
-    engine::{
-        validate::validate_config,
-        execute_action,
-        ExecutionMode,
-    },
+    engine::{execute_action, validate::validate_config, ExecutionMode},
     execution_id::ExecutionId,
 };
 
 use super::response::ExecutionResponse;
 
-pub async fn run(
-    cfg: Config,
-    mode: ExecutionMode,
-) -> Result<ExecutionResponse> {
+pub async fn run(cfg: Config, mode: ExecutionMode) -> Result<ExecutionResponse> {
     let execution_id = ExecutionId::new();
 
     let validation = validate_config(&cfg)?;
@@ -38,7 +31,6 @@ pub async fn run(
     }
 
     let result = execute_action(cfg, None).await?;
-
 
     Ok(ExecutionResponse::Execute {
         execution_id,

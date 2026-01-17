@@ -1,9 +1,5 @@
-use crate::{
-    auth::api_key_auth,
-    config::Config,
-    engine::{ExecutionMode},
-};
 use crate::engine::run::run;
+use crate::{auth::api_key_auth, config::Config, engine::ExecutionMode};
 
 use axum::{
     body::Body,
@@ -72,9 +68,7 @@ async fn health() -> &'static str {
     "ok"
 }
 
-async fn execute(
-    Json(req): Json<ExecuteRequest>,
-) -> (StatusCode, Json<serde_json::Value>) {
+async fn execute(Json(req): Json<ExecuteRequest>) -> (StatusCode, Json<serde_json::Value>) {
     match run(req.config, req.mode).await {
         Ok(response) => (
             StatusCode::OK,
@@ -90,10 +84,7 @@ async fn execute(
     }
 }
 
-
-async fn validate(
-    Json(cfg): Json<Config>,
-) -> (StatusCode, Json<serde_json::Value>) {
+async fn validate(Json(cfg): Json<Config>) -> (StatusCode, Json<serde_json::Value>) {
     match run(cfg, ExecutionMode::Validate).await {
         Ok(response) => (
             StatusCode::OK,

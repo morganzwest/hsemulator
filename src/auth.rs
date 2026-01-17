@@ -7,14 +7,11 @@ use axum::{
 };
 use std::env;
 
-pub async fn api_key_auth(
-    req: Request<Body>,
-    next: Next,
-) -> Response {
+pub async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     // Load API key from env (.env or runtime env vars)
     let expected = match env::var("HSEMULATE_API_KEY") {
         Ok(v) => v,
-        Err(_) => {        
+        Err(_) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 // API key not configured
@@ -33,9 +30,7 @@ pub async fn api_key_auth(
         .and_then(|h| h.to_str().ok());
 
     match auth_header {
-        Some(value) if value == format!("Bearer {}", expected) => {
-            next.run(req).await
-        }
+        Some(value) if value == format!("Bearer {}", expected) => next.run(req).await,
         _ => (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({

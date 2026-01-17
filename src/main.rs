@@ -28,6 +28,7 @@ mod runtime;
 mod shim;
 mod snapshot;
 mod util;
+mod sinks; 
 
 use anyhow::Result;
 use clap::Parser;

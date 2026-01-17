@@ -1,30 +1,34 @@
-use anyhow::{bail, Result};
-use std::path::PathBuf;
+use anyhow::Result;
 
 use crate::config::Config;
-use crate::engine::validate::validate_config;
 use crate::engine::ExecutionResult;
+use crate::engine::sink::EventSink;
+use crate::engine::events::{ExecutionEvent, ExecutionEventKind};
+use crate::execution_id::ExecutionId;
 
 pub async fn execute_action(
     cfg: Config,
-    assertion_file: Option<PathBuf>,
+    execution_id: ExecutionId,
+    sink: &mut dyn EventSink,
 ) -> Result<ExecutionResult> {
-    let validation = validate_config(&cfg)?;
+    // ---- execution started ----
+    sink.emit(ExecutionEvent {
+        execution_id: execution_id.clone(),
+        kind: ExecutionEventKind::ExecutionStarted,
+        timestamp: std::time::SystemTime::now(),
+    });
 
-    if !validation.valid {
-        bail!(
-            "Validation failed: {}",
-            validation
-                .errors
-                .iter()
-                .map(|e| e.message.as_str())
-                .collect::<Vec<_>>()
-                .join("; ")
-        );
-    }
+    // ---- run action ----
+    let summary = crate::runner::execute(cfg, None).await?;
 
-    let summary = crate::runner::execute(cfg, assertion_file).await?;
+    // ---- execution finished ----
+    sink.emit(ExecutionEvent {
+        execution_id: execution_id.clone(),
+        kind: ExecutionEventKind::ExecutionFinished,
+        timestamp: std::time::SystemTime::now(),
+    });
 
+    // ---- map result ----
     Ok(ExecutionResult {
         ok: summary.ok,
         runs: summary.runs,

@@ -1,18 +1,23 @@
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 pub mod execute;
 pub mod mode;
 pub mod response;
 pub mod run;
 pub mod validate;
+pub mod sink;
+pub mod events;
+pub mod summary;
 
 pub use execute::execute_action;
 pub use mode::ExecutionMode;
-pub use validate::validate_config;
+
+// pub use validate::validate_config;
+
 
 /* ---------------- execution output (existing) ---------------- */
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutionResult {
     pub ok: bool,
     pub runs: u64,
@@ -44,6 +49,7 @@ impl ValidationResult {
         }
     }
 
+    #[allow(dead_code)]
     pub fn error(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             valid: false,

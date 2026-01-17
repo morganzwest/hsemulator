@@ -1,16 +1,21 @@
-use crate::engine::run::run;
-use crate::{auth::api_key_auth, config::Config, engine::ExecutionMode};
+use crate::{
+    auth::api_key_auth,
+    config::Config,
+    engine::run::run_execution,
+    engine::ExecutionMode,
+};
 
 use axum::{
     body::Body,
-    http::{Request, Response, StatusCode},
+    http::{Request, StatusCode},
     middleware,
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use axum::debug_handler;
 use serde::Deserialize;
-use std::net::SocketAddr;
-use std::time::Duration;
+use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::Span;
@@ -35,7 +40,7 @@ pub async fn serve(addr: &str) -> anyhow::Result<()> {
                         path = %req.uri().path(),
                     )
                 })
-                .on_response(|res: &Response<Body>, latency: Duration, _span: &Span| {
+                .on_response(|res: &Response, latency: Duration, _span: &Span| {
                     tracing::info!(
                         status = res.status().as_u16(),
                         latency_ms = latency.as_millis(),
@@ -44,10 +49,10 @@ pub async fn serve(addr: &str) -> anyhow::Result<()> {
                 }),
         );
 
-    let addr: SocketAddr = addr.parse()?;
-    let listener = TcpListener::bind(addr).await?;
+    let socket: SocketAddr = addr.parse()?;
+    let listener = TcpListener::bind(socket).await?;
 
-    tracing::info!("hsemulate runtime listening on http://{}", addr);
+    tracing::info!("hsemulate runtime listening on http://{}", socket);
 
     axum::serve(listener, app).await?;
     Ok(())
@@ -55,7 +60,7 @@ pub async fn serve(addr: &str) -> anyhow::Result<()> {
 
 /* ---------------- request models ---------------- */
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct ExecuteRequest {
     #[serde(default)]
     mode: ExecutionMode,
@@ -68,34 +73,50 @@ async fn health() -> &'static str {
     "ok"
 }
 
-async fn execute(Json(req): Json<ExecuteRequest>) -> (StatusCode, Json<serde_json::Value>) {
-    match run(req.config, req.mode).await {
-        Ok(response) => (
+#[debug_handler]
+async fn execute(
+    Json(req): Json<ExecuteRequest>,
+) -> impl IntoResponse {
+    let response: Response = match run_execution(req.config, req.mode).await {
+        Ok((summary, _sink)) => (
             StatusCode::OK,
-            Json(serde_json::to_value(response).unwrap()),
-        ),
+            Json(summary),
+        )
+            .into_response(),
+
         Err(e) => (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
                 "ok": false,
                 "error": e.to_string(),
             })),
-        ),
-    }
+        )
+            .into_response(),
+    };
+
+    response
 }
 
-async fn validate(Json(cfg): Json<Config>) -> (StatusCode, Json<serde_json::Value>) {
-    match run(cfg, ExecutionMode::Validate).await {
-        Ok(response) => (
+#[debug_handler]
+async fn validate(
+    Json(cfg): Json<Config>,
+) -> impl IntoResponse {
+    let response: Response = match run_execution(cfg, ExecutionMode::Validate).await {
+        Ok((summary, _sink)) => (
             StatusCode::OK,
-            Json(serde_json::to_value(response).unwrap()),
-        ),
+            Json(summary),
+        )
+            .into_response(),
+
         Err(e) => (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
                 "ok": false,
                 "error": e.to_string(),
             })),
-        ),
-    }
+        )
+            .into_response(),
+    };
+
+    response
 }

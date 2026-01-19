@@ -1,18 +1,18 @@
 use anyhow::Result;
 
+use crate::engine::sink::EventSink;
 use crate::{
     config::Config,
     engine::{
+        events::{execution_created, ExecutionEvent, ExecutionEventKind},
         execute_action,
+        summary::ExecutionSummary,
         validate::validate_config,
         ExecutionMode,
-        events::{execution_created, ExecutionEvent, ExecutionEventKind},
-        summary::ExecutionSummary,
     },
     execution_id::ExecutionId,
     sinks::collecting::CollectingEventSink,
 };
-use crate::engine::sink::EventSink;
 
 /// Execute a full run (validation + execution) and collect all emitted events.
 ///
@@ -44,25 +44,16 @@ pub async fn run_execution(
             timestamp: std::time::SystemTime::now(),
         });
 
-        return Ok((
-            ExecutionSummary::validation_failed(execution_id),
-            sink,
-        ));
+        return Ok((ExecutionSummary::validation_failed(execution_id), sink));
     }
 
     // ---- validate-only mode ----
     if mode == ExecutionMode::Validate {
-        return Ok((
-            ExecutionSummary::validated_only(execution_id),
-            sink,
-        ));
+        return Ok((ExecutionSummary::validated_only(execution_id), sink));
     }
 
     // ---- execution ----
     let result = execute_action(cfg, execution_id.clone(), &mut sink).await?;
 
-    Ok((
-        ExecutionSummary::executed(execution_id, result),
-        sink,
-    ))
+    Ok((ExecutionSummary::executed(execution_id, result), sink))
 }

@@ -1,19 +1,18 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
+pub mod events;
 pub mod execute;
 pub mod mode;
 pub mod response;
 pub mod run;
-pub mod validate;
 pub mod sink;
-pub mod events;
 pub mod summary;
+pub mod validate;
 
 pub use execute::execute_action;
 pub use mode::ExecutionMode;
 
 // pub use validate::validate_config;
-
 
 /* ---------------- execution output (existing) ---------------- */
 
@@ -25,7 +24,6 @@ pub struct ExecutionResult {
     pub max_duration_ms: Option<u128>,
     pub max_memory_kb: Option<u64>,
     pub snapshots_ok: bool,
-    
 }
 
 /* ---------------- validation ---------------- */

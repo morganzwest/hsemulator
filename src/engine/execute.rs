@@ -1,9 +1,9 @@
 use anyhow::Result;
 
 use crate::config::Config;
-use crate::engine::ExecutionResult;
-use crate::engine::sink::EventSink;
 use crate::engine::events::{ExecutionEvent, ExecutionEventKind};
+use crate::engine::sink::EventSink;
+use crate::engine::ExecutionResult;
 use crate::execution_id::ExecutionId;
 
 pub async fn execute_action(

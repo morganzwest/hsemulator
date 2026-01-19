@@ -7,10 +7,7 @@ use axum::{
 };
 use std::env;
 
-pub async fn api_key_auth(
-    req: Request<Body>,
-    next: Next,
-) -> Response {
+pub async fn api_key_auth(req: Request<Body>, next: Next) -> Response {
     let expected = match env::var("HSEMULATE_API_KEY") {
         Ok(v) => v,
         Err(_) => {
@@ -31,9 +28,7 @@ pub async fn api_key_auth(
         .and_then(|h| h.to_str().ok());
 
     match auth_header {
-        Some(value) if value == format!("Bearer {}", expected) => {
-            next.run(req).await
-        }
+        Some(value) if value == format!("Bearer {}", expected) => next.run(req).await,
         _ => (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({

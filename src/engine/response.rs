@@ -5,7 +5,6 @@ use crate::{engine::ValidationError, execution_id::ExecutionId};
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "mode", rename_all = "lowercase")]
-
 #[allow(dead_code)]
 pub enum ExecutionResponse {
     Validate {

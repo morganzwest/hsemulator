@@ -1,10 +1,9 @@
 use crate::{
-    auth::api_key_auth,
-    config::Config,
-    engine::run::run_execution,
-    engine::ExecutionMode,
+    auth::api_key_auth, config::Config, engine::run::run_execution, engine::ExecutionMode,
 };
 
+use crate::engine::events::ExecutionEvent;
+use axum::debug_handler;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -13,14 +12,12 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use axum::debug_handler;
 use serde::Deserialize;
+use serde::Serialize;
 use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::Span;
-use crate::engine::events::ExecutionEvent;
-use serde::Serialize;
 
 /* ---------------- server ---------------- */
 
@@ -82,9 +79,7 @@ async fn health() -> &'static str {
 }
 
 #[debug_handler]
-async fn execute(
-    Json(req): Json<ExecuteRequest>,
-) -> impl IntoResponse {
+async fn execute(Json(req): Json<ExecuteRequest>) -> impl IntoResponse {
     let response: Response = match run_execution(req.config, req.mode).await {
         Ok((summary, sink)) => (
             StatusCode::OK,
@@ -108,17 +103,10 @@ async fn execute(
     response
 }
 
-
 #[debug_handler]
-async fn validate(
-    Json(cfg): Json<Config>,
-) -> impl IntoResponse {
+async fn validate(Json(cfg): Json<Config>) -> impl IntoResponse {
     let response: Response = match run_execution(cfg, ExecutionMode::Validate).await {
-        Ok((summary, _sink)) => (
-            StatusCode::OK,
-            Json(summary),
-        )
-            .into_response(),
+        Ok((summary, _sink)) => (StatusCode::OK, Json(summary)).into_response(),
 
         Err(e) => (
             StatusCode::BAD_REQUEST,

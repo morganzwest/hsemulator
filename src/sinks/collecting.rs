@@ -14,9 +14,7 @@ pub struct CollectingEventSink {
 impl CollectingEventSink {
     /// Create a new, empty collecting sink.
     pub fn new() -> Self {
-        Self {
-            events: Vec::new(),
-        }
+        Self { events: Vec::new() }
     }
 
     /// Borrow all collected events.

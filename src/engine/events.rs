@@ -1,5 +1,5 @@
 use crate::execution_id::ExecutionId;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

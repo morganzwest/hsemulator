@@ -1,8 +1,8 @@
 # HubSpot Emulator (hsemulator)
 
-**hsemulator** is a local test runner for **HubSpot Workflow Custom Code Actions**.
+**hsemulator** is a local test runner and execution engine for **HubSpot Workflow Custom Code Actions**.
 
-It allows you to run the _exact JavaScript or Python code_ you paste into HubSpot locally, using real workflow event payloads, with support for assertions, snapshots, execution budgets, and flaky-run detection.
+It allows you to run the *exact JavaScript or Python code* you paste into HubSpot locally, using real workflow event payloads, with support for assertions, snapshots, execution budgets, and flaky-run detection.
 
 The goal is to make developing HubSpot custom code feel closer to Lambda-style local development—without relying on the HubSpot UI for iteration.
 
@@ -12,18 +12,18 @@ The goal is to make developing HubSpot custom code feel closer to Lambda-style l
 
 Developing HubSpot custom code today typically means:
 
-- Writing code in an editor
-- Copying it into the HubSpot UI
-- Triggering a workflow
-- Reading logs in a browser
-- Repeating
+* Writing code in an editor
+* Copying it into the HubSpot UI
+* Triggering a workflow
+* Reading logs in a browser
+* Repeating
 
 hsemulator replaces that loop with a local, deterministic workflow:
 
-- Code stays in your editor
-- Events are fixtures
-- Failures are explicit
-- Regressions are caught automatically
+* Code stays in your editor
+* Events are fixtures
+* Failures are explicit
+* Regressions are caught automatically
 
 No UI-driven iteration required.
 
@@ -33,29 +33,62 @@ No UI-driven iteration required.
 
 Use hsemulator when you want to:
 
-- Develop and debug HubSpot custom code locally
-- Validate logic using real workflow event payloads
-- Catch regressions with assertions and snapshots
-- Enforce execution limits during development or CI
-- Reduce copy–paste cycles into the HubSpot UI
+* Develop and debug HubSpot custom code locally
+* Validate logic using real workflow event payloads
+* Catch regressions with assertions and snapshots
+* Enforce execution limits during development or CI
+* Reduce copy–paste cycles into the HubSpot UI
 
 Do **not** use it to:
 
-- Fully emulate HubSpot’s runtime or infrastructure
-- Mock HubSpot APIs or rate limits
-- Replace integration or end-to-end tests
+* Fully emulate HubSpot’s runtime or infrastructure
+* Mock HubSpot APIs or rate limits
+* Replace integration or end-to-end tests
 
 ---
 
 ## Core capabilities
 
-- Local execution of JS and Python custom code actions
-- Fixture-based event input
-- Assertions against output and metadata
-- Snapshot testing for regression detection
-- Execution budgets (time and memory)
-- Flaky-run detection via repeat execution
-- CI-friendly, machine-readable output
+* Local execution of JS and Python custom code actions
+* Fixture-based event input
+* Assertions against output and metadata
+* Snapshot testing for regression detection
+* Execution budgets (time and memory)
+* Flaky-run detection via repeat execution
+* Structured execution summaries and events
+* CI-friendly, machine-readable output
+
+---
+
+## Engine-first architecture (new)
+
+As of **v0.4.0**, hsemulator is built around a **standalone execution engine**.
+
+All execution behaviour—validation, lifecycle management, event emission, and result generation—lives in a single engine layer. Interfaces such as the CLI or HTTP runtime simply invoke the engine and interpret its outputs.
+
+This means:
+
+* The CLI is now *one* way to communicate with the engine
+* Execution behaviour is consistent across all entry points
+* New interfaces can be added without rewriting execution logic
+
+This architecture allows hsemulator to grow beyond a CLI-only tool while preserving deterministic, testable execution.
+
+---
+
+## HTTP runtime (optional)
+
+In addition to the CLI, hsemulator now includes an **HTTP runtime**.
+
+This allows executions to be triggered via API endpoints (e.g. `/execute`, `/validate`) while using the same underlying engine as the CLI.
+
+The HTTP runtime is optional and intended for:
+
+* remote execution
+* service-based workflows
+* future integrations and automation
+
+The CLI remains the primary developer interface.
 
 ---
 
@@ -66,10 +99,11 @@ Do **not** use it to:
 👉 [Read our Documentation](https://hsemulator.readthedocs.io/)
 
 Start here if you want:
-- Installation instructions
-- Project structure
-- Configuration reference
-- Assertions, snapshots, budgets, and CI usage
+
+* Installation instructions
+* Project structure
+* Configuration reference
+* Assertions, snapshots, budgets, and CI usage
 
 ---
 
@@ -81,7 +115,7 @@ hsemulator is written in **Rust** and distributed as a standalone binary.
 
 ```bash
 cargo build
-````
+```
 
 ### Running from source
 
@@ -108,13 +142,16 @@ At a high level, hsemulator works like this:
 fixture.json
      │
      ▼
+execution engine
+     │
+     ▼
 runtime shim (Node / Python)
      │
      ▼
 your HubSpot custom code
      │
      ▼
-structured JSON output
+structured output + events
      │
      ├─ assertions
      ├─ budgets
@@ -122,6 +159,7 @@ structured JSON output
 ```
 
 Each run is isolated, deterministic, and fully observable.
+
 ---
 
 ## Contributing / feedback

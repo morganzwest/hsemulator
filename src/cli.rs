@@ -5,24 +5,86 @@ use std::path::PathBuf;
 
 /// Local HubSpot Custom Code runner (JavaScript / Python).
 ///
-/// `config.yaml` is the primary source of truth.
-/// CLI flags only override config values.
+/// `config.yaml` is the source of truth.
+/// CLI flags override configuration values explicitly.
+///
+/// Designed for:
+/// - Local development
+/// - Deterministic testing
+/// - CI/CD promotion workflows
 #[derive(Parser, Debug)]
-#[command(name = "hsemulate", version, disable_help_subcommand = true)]
+#[command(
+    name = "hsemulate",
+    version,
+    disable_help_subcommand = true,
+    arg_required_else_help = true
+)]
 pub struct Cli {
-    /// Subcommand to execute
+    /// Command to execute
     #[command(subcommand)]
     pub command: Command,
 }
 
 /// All supported CLI commands.
+///
+/// Ordered by typical usage flow.
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Initialise a new hsemulate project.
+    ///
+    /// Creates:
+    /// - config.yaml
+    /// - fixtures/event.json
+    /// - Optional starter action file
+    ///
+    /// Example:
+    ///   hsemulate init js
+    Init {
+        /// Action runtime language
+        ///
+        /// Allowed values: js | python
+        #[arg(value_parser = ["js", "python"])]
+        language: Option<String>,
+    },
+
+    /// Validate configuration and exit.
+    ///
+    /// This performs **static validation only**:
+    /// - Schema correctness
+    /// - Required fields
+    /// - File existence
+    /// - Internal consistency
+    ///
+    /// No code is executed.
+    ///
+    /// Intended to be run:
+    /// - Before `run`
+    /// - Before `test`
+    /// - Automatically by UIs or CI pipelines
+    ///
+    /// Example:
+    ///   hsemulate validate
+    ///   hsemulate validate --config ./config.yaml
+    Validate {
+        /// Path to config file
+        ///
+        /// Defaults to ./config.yaml
+        #[arg(short, long, default_value = "config.yaml")]
+        config: PathBuf,
+    },
+
     /// Run a HubSpot custom code action locally.
     ///
-    /// If no arguments are provided, this defaults to:
+    /// By default this uses:
     /// - config.yaml
-    /// - action, fixtures, assertions defined inside it
+    /// - action, fixtures, assertions defined within it
+    ///
+    /// CLI flags override config values explicitly.
+    ///
+    /// Example:
+    ///   hsemulate run
+    ///   hsemulate run --watch
+    ///   hsemulate run --repeat 25
     Run {
         /// Path to config file
         ///
@@ -33,32 +95,33 @@ pub enum Command {
         /// Override action entry file
         ///
         /// Example:
-        /// --action actions/action.js
+        ///   --action actions/action.js
         #[arg(long)]
         action: Option<PathBuf>,
 
-        /// Override fixture (can be passed multiple times)
+        /// Override fixture file (repeatable)
         ///
         /// Example:
-        /// --fixture fixtures/create.json
+        ///   --fixture fixtures/create.json
+        ///   --fixture fixtures/update.json
         #[arg(long)]
         fixture: Vec<PathBuf>,
 
         /// Override assertions file (JSON)
         ///
-        /// If provided, config.yaml assertions are ignored.
+        /// When provided, assertions in config.yaml are ignored.
         #[arg(long)]
         assert: Option<PathBuf>,
 
         /// Enable snapshot testing
         ///
-        /// Overrides config snapshots.enabled = true
+        /// Forces snapshots.enabled = true
         #[arg(long)]
         snapshot: bool,
 
         /// Enable watch mode
         ///
-        /// Re-runs action when files change.
+        /// Re-runs when source files change.
         #[arg(long)]
         watch: bool,
 
@@ -66,22 +129,29 @@ pub enum Command {
         #[arg(long)]
         repeat: Option<u32>,
 
-        /// Override duration budget in milliseconds
+        /// Override execution time budget (milliseconds)
         #[arg(long)]
         budget_time: Option<u64>,
 
-        /// Override memory budget in MB (peak RSS)
+        /// Override memory budget (MB, peak RSS)
         #[arg(long)]
         budget_mem: Option<u64>,
     },
 
     /// CI-first execution mode.
     ///
-    /// Equivalent to:
+    /// This is equivalent to:
     /// - mode = ci
     /// - snapshots enabled
-    /// - no watch
+    /// - watch disabled
     /// - strict failure handling
+    ///
+    /// Intended for:
+    /// - CI pipelines
+    /// - Pre-promotion gates
+    ///
+    /// Example:
+    ///   hsemulate test
     Test {
         /// Path to config file
         ///
@@ -90,44 +160,56 @@ pub enum Command {
         config: PathBuf,
     },
 
-    /// Initialise a project scaffold.
+    /// Start the HTTP runtime server.
     ///
-    /// Creates:
-    /// - config.yaml
-    /// - fixtures/event.json
-    /// - optional starter action file
-    Init {
-        /// Optional action template language
-        ///
-        /// Allowed values: js | python
-        #[arg(value_parser = ["js", "python"])]
-        language: Option<String>,
+    /// Exposes endpoints for:
+    /// - Validation
+    /// - Execution
+    ///
+    /// Intended for:
+    /// - Remote execution
+    /// - Control-plane orchestration
+    /// - Managed runners
+    ///
+    /// Example:
+    ///   hsemulate runtime --listen 0.0.0.0:8080
+    Runtime {
+        /// Address to listen on
+        #[arg(long, default_value = "127.0.0.1:8080")]
+        listen: String,
     },
 
     /// CI/CD related commands.
+    ///
+    /// Used to scaffold and manage promotion workflows.
     Cicd {
         #[command(subcommand)]
         command: CicdCommand,
     },
 
-    /// Config-related commands
-    Config {
-        #[command(subcommand)]
-        command: ConfigCommand,
-    },
-
-    /// Promote the currently tested code into a HubSpot workflow action.
+    /// Promote tested code into an existing HubSpot workflow action.
     ///
-    /// This is a gated promotion step. Use --force to bypass test gates.
+    /// Promotion is gated by test results unless `--force` is used.
+    ///
+    /// Assumes:
+    /// - Workflow and action already exist
+    /// - CI/CD configuration is present
+    ///
+    /// Example:
+    ///   hsemulate promote production
     Promote {
-        /// Promotion target name from .hsemulator/cicd.yaml (e.g. "production")
+        /// Promotion target name from .hsemulator/cicd.yaml
+        ///
+        /// Example: "production"
         target: String,
 
-        /// Force promotion (skips test gating)
+        /// Force promotion (skip test gates)
         #[arg(long)]
         force: bool,
 
-        /// Path to action config file (defaults to ./config.yaml)
+        /// Path to action config file
+        ///
+        /// Defaults to ./config.yaml
         #[arg(short, long, default_value = "config.yaml")]
         config: PathBuf,
     },
@@ -138,8 +220,15 @@ pub enum Command {
 pub enum CicdCommand {
     /// Initialise CI/CD configuration.
     ///
-    /// - `cicd init` → creates .hsemulator/cicd.yaml
-    /// - `cicd init action` → also creates GitHub Actions workflow
+    /// Creates:
+    /// - .hsemulator/cicd.yaml
+    ///
+    /// Optional:
+    /// - GitHub Actions workflow
+    ///
+    /// Examples:
+    ///   hsemulate cicd init js
+    ///   hsemulate cicd init js action --branch main
     Init {
         /// Runtime language for the action
         ///
@@ -147,16 +236,16 @@ pub enum CicdCommand {
         #[arg(value_parser = ["js", "python"])]
         runtime: String,
 
-        /// Optional init type (e.g. GitHub Actions)
+        /// Optional CI/CD init type
         ///
-        /// Currently supported:
-        /// - action
+        /// Supported:
+        /// - action (GitHub Actions)
         #[arg(value_enum)]
         kind: Option<CicdInitKind>,
 
         /// Git branch to trigger CI/CD on
         ///
-        /// Only valid when `kind = action`
+        /// Only valid when kind = action
         #[arg(long)]
         branch: Option<String>,
     },
@@ -165,15 +254,6 @@ pub enum CicdCommand {
 /// Supported CI/CD init types.
 #[derive(ValueEnum, Debug, Clone)]
 pub enum CicdInitKind {
-    /// Initialise GitHub Actions workflow.
+    /// Initialise GitHub Actions workflow
     Action,
-}
-
-#[derive(clap::Subcommand, Debug)]
-pub enum ConfigCommand {
-    /// Validate config.yaml and exit
-    Validate {
-        #[arg(default_value = "config.yaml")]
-        config: PathBuf,
-    },
 }

@@ -2,8 +2,9 @@
 
 use crate::checks::{assert_json, check_budgets, BudgetsResolved};
 use crate::cicd;
-use crate::cli::{Cli, Command, ConfigCommand};
+use crate::cli::{Cli, Command};
 use crate::config::{Assertion, Budgets, Config, Mode, OutputMode};
+use crate::engine;
 use crate::metrics::{InvocationMetrics, MemoryTracker};
 use crate::promote;
 use crate::shim::{node_shim, python_shim};
@@ -24,13 +25,13 @@ use tempfile::tempdir;
 use tokio::process::Command as TokioCommand;
 
 #[derive(Debug)]
-struct ExecSummary {
-    ok: bool,
-    failures: Vec<String>,
-    runs: u64,
-    max_duration_ms: Option<u128>,
-    max_memory_kb: Option<u64>,
-    snapshots_ok: bool,
+pub(crate) struct ExecSummary {
+    pub ok: bool,
+    pub failures: Vec<String>,
+    pub runs: u64,
+    pub max_duration_ms: Option<u128>,
+    pub max_memory_kb: Option<u64>,
+    pub snapshots_ok: bool,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -58,7 +59,22 @@ pub async fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Init { language } => init_scaffold(language),
 
-        Command::Config { command } => handle_config_command(command),
+        Command::Runtime { listen } => crate::runtime::serve(&listen).await,
+
+        Command::Validate { config } => {
+            let cfg = Config::load(&config)?;
+            let result = engine::validate::validate_config(&cfg)?;
+
+            if result.valid {
+                println!("Config is valid");
+                Ok(())
+            } else {
+                for err in result.errors {
+                    eprintln!("✖ [{}] {}", err.code, err.message);
+                }
+                bail!("Validation failed");
+            }
+        }
 
         Command::Cicd { command } => cicd::handle(command),
 
@@ -285,8 +301,11 @@ fn clear_screen() {
 
 /* ---------------- core execution ---------------- */
 
-async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSummary> {
-    let action = cfg.action.as_ref().expect("config validated");
+pub(crate) async fn execute(cfg: Config, assertion_file: Option<PathBuf>) -> Result<ExecSummary> {
+    let action = cfg
+        .action
+        .as_ref()
+        .context("Missing action configuration")?;
 
     let action_file = PathBuf::from(&action.entry)
         .canonicalize()
@@ -918,16 +937,4 @@ def main(event):
         print(e)
         raise
 "#
-}
-
-fn handle_config_command(command: ConfigCommand) -> Result<()> {
-    match command {
-        ConfigCommand::Validate { config } => {
-            Config::load(&config)?;
-
-            println!("Config OK: {}", config.to_string_lossy());
-
-            Ok(())
-        }
-    }
 }

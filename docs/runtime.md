@@ -1,7 +1,3 @@
-Here is a **clean, fully rewritten Runtime HTTP API document** that reflects your **current architecture**, **inline execution support**, and **engine-first philosophy**. This replaces the old doc entirely.
-
----
-
 # Runtime HTTP API
 
 `hsemulator` exposes a **minimal, engine-backed HTTP runtime** for **validating and executing HubSpot custom code actions**.

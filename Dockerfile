@@ -8,14 +8,28 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 WORKDIR /app
 
-# Needed for TLS + certs
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install system deps + runtimes
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    python3 \
+    python3-pip \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
 
+# Normalise runtime binary names
+# (your code expects `python` and `node`)
+RUN ln -s /usr/bin/python3 /usr/bin/python || true
+
+# Copy binary
 COPY --from=builder /app/target/release/hsemulate /usr/local/bin/hsemulate
 
+# Cloud Run
 EXPOSE 8080
-
-# Cloud Run expects the server to bind to $PORT
 ENV PORT=8080
+
+# Optional: sanity check at container start (safe to keep)
+RUN node --version && python --version
 
 CMD ["hsemulate", "runtime", "--listen", "0.0.0.0:8080"]

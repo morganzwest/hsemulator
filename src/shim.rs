@@ -125,39 +125,59 @@ process.stdout.write(JSON.stringify({
 /// Expected action shape:
 /// def main(event): ...
 pub fn python_shim() -> &'static str {
-    r#"
+    r#"# hs_python_runner.py
+#
+# Runtime shim for executing HubSpot Custom Code Actions (Python).
+#
+# Contract:
+# - User code may print/log freely
+# - ALL user output is redirected to STDERR
+# - STDOUT emits EXACTLY ONE JSON object at the end
+# - Any deviation is a hard error
+
 import importlib.util
 import json
 import sys
 import traceback
 from contextlib import redirect_stdout
+from io import StringIO
 
-def fatal(message, error=None):
-    sys.stdout.write(json.dumps({
-        "ok": False,
-        "language": "python",
-        "result": None,
-        "error": {
-            "type": "runtime",
-            "message": message,
-            "stack": error
-        }
-    }))
+
+def fatal(message, stack=None):
+    sys.stdout.write(
+        json.dumps(
+            {
+                "ok": False,
+                "language": "python",
+                "result": None,
+                "error": {
+                    "type": "runtime",
+                    "message": message,
+                    "stack": stack,
+                },
+            }
+        )
+    )
     sys.exit(1)
+
 
 def import_python_file(file_path: str):
     spec = importlib.util.spec_from_file_location("hs_action_module", file_path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Unable to import file: {file_path}")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
-def log(*args):
-    print("__HSE_LOG__", *args, file=sys.stderr)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
-def error(*args):
-    print("__HSE_ERR__", *args, file=sys.stderr)
+
+def emit_log(line: str):
+    print("__HSE_LOG__", line, file=sys.stderr)
+
+
+def emit_err(line: str):
+    print("__HSE_ERR__", line, file=sys.stderr)
+
 
 def main():
     if len(sys.argv) < 3:
@@ -166,44 +186,66 @@ def main():
     action_file = sys.argv[1]
     event_path = sys.argv[2]
 
+    # Load event
     try:
         with open(event_path, "r", encoding="utf-8") as f:
             event = json.load(f)
-    except Exception as e:
+    except Exception:
         fatal("Failed to read or parse event.json", traceback.format_exc())
 
+    # Import action module
     try:
-        mod = import_python_file(action_file)
-    except Exception as e:
+        module = import_python_file(action_file)
+    except Exception:
         fatal("Failed to load action file", traceback.format_exc())
 
-    if not hasattr(mod, "main"):
+    if not hasattr(module, "main") or not callable(module.main):
         fatal("Action file must define: def main(event)")
 
     ok = True
     result = None
-    err = None
+    error = None
+
+    # Capture ALL stdout produced by user code
+    stdout_buffer = StringIO()
+    old_stdout = sys.stdout
 
     try:
-        result = mod.main(event)
+        sys.stdout = stdout_buffer
+        with redirect_stdout(stdout_buffer):
+            result = module.main(event)
     except Exception as e:
-        error(str(e))
         ok = False
-        err = {
+        error = {
             "type": "action",
             "message": str(e),
-            "stack": traceback.format_exc()
+            "stack": traceback.format_exc(),
         }
+    finally:
+        sys.stdout = old_stdout
 
+    # Flush captured stdout as structured logs
+    captured = stdout_buffer.getvalue()
+    if captured:
+        for line in captured.splitlines():
+            if line.strip():
+                emit_log(line)
 
-    sys.stdout.write(json.dumps({
-        "ok": ok,
-        "language": "python",
-        "result": result,
-        "error": err
-    }))
+    # Emit final JSON — MUST be the only STDOUT output
+    sys.stdout.write(
+        json.dumps(
+            {
+                "ok": ok,
+                "language": "python",
+                "result": result,
+                "error": error,
+            }
+        )
+    )
+
 
 if __name__ == "__main__":
     main()
+
 "#
 }

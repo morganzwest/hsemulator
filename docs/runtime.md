@@ -347,6 +347,290 @@ No code is executed.
 
 ---
 
+
+# Promotion (`/promote`)
+
+The `/promote` endpoint updates an existing **HubSpot CUSTOM_CODE workflow action** with tested source code.
+
+It is designed to be:
+
+* Deterministic
+* Safe by default
+* Fully automatable from CI or a UI
+* Compatible with `hsemulate test` + snapshot gating
+
+Promotion **does not create workflows or actions**.
+It updates an existing action in place.
+
+---
+
+## What Promotion Does
+
+A promotion performs the following steps:
+
+1. Receives raw action source code (JS or Python)
+2. Computes a canonical SHA-256 hash of the source
+3. Injects a `hsemulator-sha` marker comment
+4. Fetches the target HubSpot workflow
+5. Locates the target `CUSTOM_CODE` action by selector
+6. Applies drift protection
+7. Updates the action source (and runtime if provided)
+8. Writes the updated workflow back to HubSpot
+
+All steps are atomic from the caller’s perspective.
+
+---
+
+## Drift Protection
+
+Promotion uses a **hash marker** to ensure ownership and prevent accidental overwrites.
+
+Injected marker (example):
+
+```js
+// hsemulator-sha: a3f4c1...
+```
+
+or (Python):
+
+```py
+# hsemulator-sha: a3f4c1...
+```
+
+Rules:
+
+* If the existing action has the same hash → **no-op**
+* If the existing hash differs → update proceeds
+* If no marker exists:
+
+  * Promotion fails by default
+  * `force: true` overrides this protection
+
+This prevents overwriting manually-edited or externally-managed actions.
+
+---
+
+## Endpoint
+
+```
+POST /promote
+```
+
+This endpoint is protected by the runtime API key middleware.
+
+---
+
+## Request Body
+
+```json
+{
+  "hubspot_token": "pat-xxxx",
+  "workflow_id": "123456789",
+  "selector": {
+    "type": "secret",
+    "value": "HUBSPOT_PRIVATE_APP_TOKEN"
+  },
+  "runtime": "nodejs18.x",
+  "source_code": "// action source here",
+  "force": false,
+  "dry_run": false
+}
+```
+
+---
+
+## Request Fields
+
+### `hubspot_token` (required)
+
+HubSpot **private app token** used to fetch and update the workflow.
+
+* Must belong to the portal containing the workflow
+* Must have automation/workflow scopes
+
+This token is **not stored** by the runtime.
+
+---
+
+### `workflow_id` (required)
+
+The HubSpot workflow ID containing the target action.
+
+This must be a valid workflow accessible by the token.
+
+---
+
+### `selector` (required)
+
+Identifies the `CUSTOM_CODE` action to update.
+
+Currently supported selector:
+
+```json
+{
+  "type": "secret",
+  "value": "HUBSPOT_PRIVATE_APP_TOKEN"
+}
+```
+
+This matches against `action.secretNames[]`.
+
+Rules:
+
+* Exactly **one** matching action must be found
+* Multiple matches cause failure
+* Zero matches cause failure
+
+---
+
+### `runtime` (optional)
+
+Overrides the action runtime in HubSpot.
+
+Example values:
+
+* `nodejs18.x`
+* `python3.11`
+
+If omitted, the existing runtime is preserved.
+
+---
+
+### `source_code` (required)
+
+Raw JavaScript or Python source code to promote.
+
+* Hash marker is injected automatically
+* Existing marker is replaced if present
+
+---
+
+### `force` (optional, default `false`)
+
+Overrides safety checks.
+
+Effects:
+
+* Allows overwriting actions without a hash marker
+* Skips drift ownership protection
+
+Use with caution.
+
+---
+
+### `dry_run` (optional, default `false`)
+
+If `true`:
+
+* No PUT request is sent to HubSpot
+* Full validation and hashing still occur
+* A summary response is returned
+
+Recommended for CI validation and previews.
+
+---
+
+## Responses
+
+### Success (Dry Run)
+
+```json
+{
+  "ok": true,
+  "dry_run": true,
+  "workflow_id": "123456789",
+  "hash": "a3f4c1...",
+  "action_index": 4
+}
+```
+
+---
+
+### Success (Promotion Applied)
+
+```json
+{
+  "ok": true,
+  "workflow_id": "123456789",
+  "hash": "a3f4c1...",
+  "revision_id": "987654321"
+}
+```
+
+---
+
+### No-Op (Already Up To Date)
+
+```json
+{
+  "ok": true,
+  "status": "noop",
+  "hash": "a3f4c1..."
+}
+```
+
+---
+
+### Failure Examples
+
+**Unauthorized (API key):**
+
+```json
+{
+  "ok": false,
+  "error": "Unauthorized"
+}
+```
+
+**Invalid selector:**
+
+```json
+{
+  "ok": false,
+  "error": "Only selector.type = 'secret' is supported"
+}
+```
+
+**Workflow fetch failure:**
+
+```json
+{
+  "ok": false,
+  "error": "HubSpot GET flow failed: 400 Bad Request Invalid request"
+}
+```
+
+---
+
+## Interaction With Tests and Snapshots
+
+The runtime `/promote` endpoint itself does **not** execute tests.
+
+However, it is designed to be called **only after**:
+
+* `hsemulate test`
+* Snapshot comparison
+* Budget enforcement
+* Assertion validation
+
+The CLI `hsemulate promote` command enforces these gates automatically.
+
+When using `/promote` directly, the caller is responsible for enforcing test discipline.
+
+---
+
+## Safety Guarantees
+
+* No workflow creation
+* No action creation
+* Deterministic selection
+* Ownership protection via hash
+* Explicit override required for unsafe writes
+
+Promotion is intentionally strict.
+
+---
+
 ## Relationship Between `/validate` and `/execute`
 
 | Endpoint                      | Behaviour                    |
